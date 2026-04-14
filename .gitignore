@@ -1,0 +1,59 @@
+# ══════════════════════════════════════════════
+# Agentic AI Trader — .gitignore
+# ══════════════════════════════════════════════
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# ── Virtual Environments ──
+.venv/
+venv/
+ENV/
+env/
+
+# ── IDE / Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ── Environment Variables ──
+.env
+.env.local
+.env.production
+
+# ── Database files ──
+*.db
+*.sqlite3
+data/historical/*.db
+
+# ── RAG / Vector DB ──
+backend/rag/chroma_db/
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Logs ──
+*.log
+logs/
+
+# ── Jupyter ──
+.ipynb_checkpoints/
+
+# ── Misc ──
+*.bak
+*.tmp
+*.cache

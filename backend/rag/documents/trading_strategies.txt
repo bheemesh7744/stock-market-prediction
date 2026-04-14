@@ -1,0 +1,142 @@
+# Comprehensive Trading Strategies Guide
+
+## Overview
+Trading strategies are systematic approaches to buying and selling financial instruments. Successful traders combine multiple strategies with proper risk management.
+
+## Day Trading Strategies
+
+### Scalping
+- Timeframe: 1-5 minutes
+- Target: Small profits (5-10 points on NIFTY)
+- Stop Loss: 5-8 points
+- Best for: High volatility sessions
+
+### Momentum Trading
+- Timeframe: 15-30 minutes  
+- Entry: Breakout of consolidation
+- Target: 1-2% move
+- Stop Loss: Below recent low
+
+### Mean Reversion
+- Timeframe: 5-15 minutes
+- Entry: Overbought/oversold levels
+- Target: Return to mean
+- Indicators: RSI, Bollinger Bands
+
+## Swing Trading Strategies
+
+### Breakout Trading
+- Timeframe: Daily charts
+- Entry: Break above resistance
+- Target: Next resistance level
+- Stop Loss: Below breakout point
+
+### Pullback Trading
+- Timeframe: Daily charts
+- Entry: Pullback to support in uptrend
+- Target: Previous high
+- Stop Loss: Below support
+
+## Position Trading Strategies
+
+### Trend Following
+- Timeframe: Weekly charts
+- Entry: On trend confirmation
+- Target: Trend exhaustion
+- Stop Loss: 20% below entry
+
+### Value Investing
+- Timeframe: Long-term (6+ months)
+- Entry: Fundamental undervaluation
+- Target: Fair value
+- Analysis: P/E, P/B, ROE ratios
+
+## Indian Market Specific Strategies
+
+### Bank NIFTY Trading
+- Best time: 9:15 AM - 10:30 AM
+- Key levels: Previous day high/low
+- Volatility: Higher than NIFTY 50
+
+### Index Options Writing
+- Strategy: Sell OTM options
+- Delta: 0.2-0.3
+- Expiry: Weekly
+- Risk: Unlimited (hedged with futures)
+
+### Sector Rotation
+- Auto: IT, Pharma, Banking
+- Cycle: Quarterly results
+- Entry: Sector momentum shift
+- Risk: Concentration risk
+
+## Risk Management Integration
+
+### Position Sizing
+- Day Trading: 1-2% of capital
+- Swing Trading: 3-5% of capital  
+- Position Trading: 5-10% of capital
+
+### Stop Loss Rules
+- Day Trading: 0.5-1%
+- Swing Trading: 2-3%
+- Position Trading: 15-20%
+
+### Profit Taking
+- Day Trading: 1:2 risk-reward
+- Swing Trading: 1:3 risk-reward
+- Position Trading: 1:5 risk-reward
+
+## Market Timing Strategies
+
+### Pre-Market Analysis
+- Time: 8:45 AM - 9:15 AM
+- SGX NIFTY correlation
+- Global market cues
+- Previous day close analysis
+
+### Intraday Session Trading
+- Morning Session: 9:15 AM - 11:30 AM
+- Afternoon Session: 1:00 PM - 3:30 PM
+- Avoid: 11:30 AM - 1:00 PM (lunch effect)
+
+## Technical Analysis Integration
+
+### Chart Patterns
+- Head and Shoulders
+- Double Top/Bottom
+- Triangle patterns
+- Flag and Pennant
+
+### Indicator Combinations
+- RSI + MACD for momentum
+- Bollinger Bands + RSI for reversal
+- Volume + Price for confirmation
+
+## Algorithmic Trading Elements
+
+### Entry Conditions
+- Price action confirmation
+- Volume spike validation
+- Multiple timeframe alignment
+- Risk-reward ratio > 1:2
+
+### Exit Conditions
+- Stop loss hit
+- Target achieved
+- Trend reversal signals
+- Time-based exits
+
+## Psychological Trading Rules
+
+### Trading Discipline
+- Follow the plan strictly
+- No revenge trading
+- Accept losses gracefully
+- Review trades weekly
+
+### Emotional Control
+- Fear and greed management
+- Overtrading avoidance
+- Patience in waiting
+- Confidence in analysis
