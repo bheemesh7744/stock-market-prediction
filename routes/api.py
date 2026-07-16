@@ -486,8 +486,14 @@ def get_stocks_list():
                 }
         
         symbols = list(INDIAN_STOCKS_CONFIG.keys())
-        # Use shared module-level executor instead of creating one per request
-        results = list(shared_executor.map(fetch_stock_summary, symbols))
+        try:
+            import eventlet
+            # Use eventlet's GreenPool to run in parallel without native thread deadlocks
+            pool = eventlet.GreenPool(size=min(len(symbols), 20))
+            results = list(pool.imap(fetch_stock_summary, symbols))
+        except ImportError:
+            # Fallback to standard ThreadPoolExecutor if eventlet is not active
+            results = list(shared_executor.map(fetch_stock_summary, symbols))
         
         # Cache the results
         _stocks_list_cache['data'] = results
