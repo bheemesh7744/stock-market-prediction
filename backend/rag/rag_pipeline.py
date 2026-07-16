@@ -291,23 +291,7 @@ Please provide a comprehensive answer based on the retrieved context and your tr
         
         return health
     
-    def initialize_system(self) -> bool:
-        """
-        Initialize the RAG system
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            success = initialize_rag_system()
-            if success:
-                logger.info("RAG Pipeline system initialized successfully")
-            else:
-                logger.warning("RAG Pipeline initialization failed")
-            return success
-        except Exception as e:
-            logger.error(f"Error initializing RAG Pipeline system: {e}")
-            return False
+
 
 # Global pipeline instance
 rag_pipeline = None

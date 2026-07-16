@@ -48,19 +48,17 @@ if errorlevel 1 (
 echo ✅ Dependencies ready
 echo.
 
-REM Start the app
+REM Start the Python app
 echo 🚀 Starting Indian Market Trading App...
-echo 📍 URL: http://localhost:5008
+echo 📍 URL: http://127.0.0.1:5008
 echo.
 echo 🌐 Opening browser in 3 seconds...
 echo.
 
-REM Open browser after delay
-timeout /t 3 /nobreak >nul
-start http://localhost:5008
+REM Spawn a background command to open the browser after a 3s delay
+start "" cmd /c "timeout /t 3 /nobreak >nul && start http://127.0.0.1:5008"
 
 REM Start the Python app
-
 python perfect_indian_app.py
 
 echo.

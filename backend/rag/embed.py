@@ -5,7 +5,7 @@ Uses LangChain and sentence-transformers to create embeddings from trading strat
 
 import os
 import json
-from typing import List, Dict, Any
+from typing import List
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document

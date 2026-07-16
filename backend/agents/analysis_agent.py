@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Import Deep Learning Agent
 try:
-    from backend.agents.deep_learning_agent import deep_learning_agent, generate_deep_predictions
+    from backend.agents.deep_learning_agent import generate_deep_predictions
     DEEP_LEARNING_AVAILABLE = True
     logger.info("Deep learning agent imported successfully")
 except ImportError as e:
@@ -52,9 +52,17 @@ class AnalysisAgent:
             # Step 5: Get Deep Learning predictions
             deep_learning_insights = self._get_deep_learning_insights(symbol, market_data, indicators)
             
+            # Step 5b: Get News Sentiment analysis
+            try:
+                from market_engine import fetch_news_and_sentiment
+                news_analysis = fetch_news_and_sentiment(symbol)
+            except Exception as ne:
+                logger.error(f"Error importing or fetching news in AnalysisAgent: {ne}")
+                news_analysis = {'articles': [], 'news_sentiment_score': 0.0, 'news_sentiment_label': 'Neutral'}
+
             # Step 6: Generate final analysis
             final_analysis = self._generate_final_analysis(
-                symbol, market_data, market_analysis, strategy_analysis, risk_analysis, rag_insights, deep_learning_insights
+                symbol, market_data, market_analysis, strategy_analysis, risk_analysis, rag_insights, deep_learning_insights, news_analysis
             )
             
             # Cache the analysis
@@ -109,15 +117,15 @@ class AnalysisAgent:
             # Create enhanced deep learning insights
             dl_insights = {
                 'dl_enabled': True,
-                'insights': f"Deep Learning Ensemble Prediction: {dl_predictions.get('predicted_change_percent', 0):.2f}% change expected",
+                'insights': f"Quantitative Ensemble Prediction: {dl_predictions.get('predicted_change_percent', 0):.2f}% change expected (based on real data)",
                 'predictions': dl_predictions,
                 'success': True,
                 'model_type': dl_predictions.get('prediction_type', 'unknown'),
                 'confidence': dl_predictions.get('confidence_score', 0.5),
-                'accuracy': dl_predictions.get('model_performance', {}).get('accuracy', 0.7)
+                'accuracy': dl_predictions.get('model_performance', {}).get('accuracy', 0.0)
             }
             
-            logger.info(f"Deep learning insights generated for {symbol} with {dl_predictions.get('predicted_change_percent', 0):.2f}% prediction")
+            logger.info(f"Quantitative ensemble prediction for {symbol}: {dl_predictions.get('predicted_change_percent', 0):.2f}% change expected")
             return dl_insights
             
         except Exception as e:
@@ -134,7 +142,7 @@ class AnalysisAgent:
         try:
             # Import here to avoid circular import
             try:
-                from perfect_indian_app import RAG_AVAILABLE, process_trading_question_cached
+                from market_engine import RAG_AVAILABLE, process_trading_question_cached
             except ImportError:
                 RAG_AVAILABLE = False
             
@@ -222,7 +230,7 @@ class AnalysisAgent:
     def _generate_final_analysis(self, symbol: str, market_data: Dict[str, Any], 
                                market_analysis: Dict[str, Any], strategy_analysis: Dict[str, Any], 
                                risk_analysis: Dict[str, Any], rag_insights: Dict[str, Any], 
-                               deep_learning_insights: Dict[str, Any]) -> Dict[str, Any]:
+                               deep_learning_insights: Dict[str, Any], news_analysis: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generate final comprehensive analysis"""
         try:
             # Import here to avoid circular imports
@@ -236,7 +244,7 @@ class AnalysisAgent:
             
             # Generate AI trading suggestion
             ai_suggestion = self._generate_ai_trading_suggestion(
-                strategy_recommendation, risk_metrics, indicators
+                strategy_recommendation, risk_metrics, indicators, news_analysis
             )
             
             # Create comprehensive analysis
@@ -270,6 +278,9 @@ class AnalysisAgent:
                 'dl_enhanced': deep_learning_insights.get('dl_enabled', False),
                 'dl_predictions': deep_learning_insights.get('predictions', {}),
                 
+                # News Sentiment analysis
+                'news_analysis': news_analysis,
+                
                 # AI Trading Suggestion
                 'ai_trading_suggestion': ai_suggestion,
                 
@@ -294,7 +305,7 @@ class AnalysisAgent:
                 
                 # Confidence Score
                 'confidence_score': min(
-                    risk_metrics.get('confidence_score', 0.5),
+                    ai_suggestion.get('confidence', 0.5),
                     best_strategy.get('score', 0.5),
                     0.95  # Cap at 95%
                 ),
@@ -309,6 +320,12 @@ class AnalysisAgent:
                 'trading_signals': self._generate_trading_signals(indicators, best_strategy, risk_metrics)
             }
             
+            # Append news summary points to key points if present
+            if news_analysis and news_analysis.get('articles'):
+                label = news_analysis.get('news_sentiment_label', 'Neutral')
+                score = news_analysis.get('news_sentiment_score', 0.0)
+                final_analysis['key_points'].append(f"News Sentiment: {label} ({score:+.2f})")
+                
             return final_analysis
             
         except Exception as e:
@@ -316,7 +333,8 @@ class AnalysisAgent:
             return self._get_fallback_analysis(symbol, market_data, str(e))
     
     def _generate_ai_trading_suggestion(self, strategy_recommendation: Dict[str, Any], 
-                                       risk_metrics: Dict[str, Any], indicators: Dict[str, Any]) -> Dict[str, Any]:
+                                       risk_metrics: Dict[str, Any], indicators: Dict[str, Any],
+                                       news_analysis: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generate AI trading suggestion"""
         try:
             base_recommendation = strategy_recommendation.get('recommendation', 'HOLD')
@@ -329,17 +347,51 @@ class AnalysisAgent:
                     base_recommendation = 'HOLD'
                     base_confidence *= 0.7
             
+            # Factor in News Sentiment
+            reasoning = list(strategy_recommendation.get('reasoning', []))
+            if news_analysis and news_analysis.get('articles'):
+                news_score = news_analysis.get('news_sentiment_score', 0.0)
+                news_label = news_analysis.get('news_sentiment_label', 'Neutral')
+                
+                reasoning.append(f"Market news sentiment is {news_label} (average score: {news_score:+.2f})")
+                
+                # If news is bearish, lower buy call confidence and boost put/hold
+                if news_score < -0.1:
+                    if base_recommendation == 'BUY CALL':
+                        base_confidence *= (1.0 + news_score * 0.5)
+                        if base_confidence < 0.5:
+                            base_recommendation = 'HOLD'
+                            reasoning.append("Downgraded BUY CALL recommendation to HOLD due to negative news catalyst")
+                    elif base_recommendation == 'BUY PUT':
+                        base_confidence = min(0.95, base_confidence * 1.25)
+                        reasoning.append("Strengthened BUY PUT confidence due to bearish news flow")
+                    elif base_recommendation == 'HOLD':
+                        base_confidence = min(0.95, base_confidence * 1.1)
+                
+                # If news is bullish, boost call confidence and lower put/hold
+                elif news_score > 0.1:
+                    if base_recommendation == 'BUY CALL':
+                        base_confidence = min(0.95, base_confidence * 1.25)
+                        reasoning.append("Strengthened BUY CALL confidence due to bullish news flow")
+                    elif base_recommendation == 'BUY PUT':
+                        base_confidence *= (1.0 - news_score * 0.5)
+                        if base_confidence < 0.5:
+                            base_recommendation = 'HOLD'
+                            reasoning.append("Downgraded BUY PUT recommendation to HOLD due to positive news catalyst")
+                    elif base_recommendation == 'HOLD':
+                        base_confidence = min(0.95, base_confidence * 1.1)
+
             # Final confidence (weighted average)
             final_confidence = (base_confidence * 0.6 + risk_confidence * 0.4)
             
             return {
                 'suggestion': base_recommendation,
-                'option_side': strategy_recommendation.get('option_side', 'HOLD'),
+                'option_side': base_recommendation.split()[-1] if ' ' in base_recommendation else base_recommendation,
                 'confidence': final_confidence,
-                'reasoning': strategy_recommendation.get('reasoning', []),
+                'reasoning': reasoning,
                 'entry_conditions': strategy_recommendation.get('entry_conditions', []),
                 'exit_conditions': strategy_recommendation.get('exit_conditions', []),
-                'risk_adjusted': risk_metrics.get('risk_level') in ['Very High', 'High'],
+                'risk_adjusted': risk_metrics.get('risk_level') in ['Very High', 'High'] or (news_analysis and abs(news_analysis.get('news_sentiment_score', 0)) > 0.1),
                 'generated_at': datetime.now().isoformat()
             }
             
@@ -359,7 +411,7 @@ class AnalysisAgent:
             import sys
             import os
             sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-            from perfect_indian_app import generate_enhanced_predictions
+            from routes.api import generate_enhanced_predictions
             
             return generate_enhanced_predictions(symbol, market_data)
         except Exception as e:
@@ -520,6 +572,4 @@ def generate_ai_analysis(symbol: str, market_data: Dict[str, Any]) -> Dict[str, 
     """Generate comprehensive AI analysis"""
     return analysis_agent.generate_comprehensive_analysis(symbol, market_data)
 
-def get_cached_analysis(symbol: str) -> Dict[str, Any]:
-    """Get cached analysis"""
-    return analysis_agent.get_cached_analysis(symbol)
+

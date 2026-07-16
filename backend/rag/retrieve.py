@@ -91,36 +91,7 @@ class TradingDocumentRetriever:
             logger.error(f"Error retrieving documents: {e}")
             return []
     
-    def retrieve_documents_with_scores(self, query: str, top_k: Optional[int] = None) -> List[tuple]:
-        """
-        Retrieve relevant documents with similarity scores
-        
-        Args:
-            query: User query string
-            top_k: Number of documents to retrieve (overrides default)
-            
-        Returns:
-            List of (Document, score) tuples
-        """
-        if self.vector_store is None:
-            logger.error("No vector store available. Please create embeddings first.")
-            return []
-        
-        try:
-            k = top_k if top_k is not None else self.top_k
-            
-            # Perform similarity search with scores
-            results = self.vector_store.similarity_search_with_score(
-                query=query,
-                k=k
-            )
-            
-            logger.info(f"Retrieved {len(results)} documents with scores for query: '{query}'")
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error retrieving documents with scores: {e}")
-            return []
+
     
     def format_retrieved_context(self, documents: List[Document]) -> str:
         """

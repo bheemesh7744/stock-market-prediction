@@ -145,47 +145,7 @@ class RAGService:
             logger.error(f"Error getting available documents: {e}")
             return []
     
-    def add_new_document(self, file_path: str, content: str = None) -> bool:
-        """
-        Add a new document to the knowledge base
-        
-        Args:
-            file_path: Path to the document file
-            content: Document content (if not reading from file)
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            from langchain.schema import Document
-            
-            if content is None:
-                # Read content from file
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-            
-            # Create document with metadata
-            filename = os.path.basename(file_path)
-            metadata = {
-                'source': filename,
-                'file_type': filename.split('.')[-1],
-                'file_path': file_path
-            }
-            
-            document = Document(page_content=content, metadata=metadata)
-            
-            # Add to vector store
-            self.embedder.add_documents([document])
-            
-            # Refresh retriever
-            self.retriever._load_vector_store()
-            
-            logger.info(f"Successfully added document: {filename}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error adding document: {e}")
-            return False
+
     
     def health_check(self) -> Dict[str, Any]:
         """

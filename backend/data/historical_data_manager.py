@@ -8,10 +8,8 @@ import numpy as np
 import yfinance as yf
 import sqlite3
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
-import os
-import json
+from datetime import datetime
+from typing import Dict, Any, Tuple
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -530,43 +528,7 @@ class HistoricalDataManager:
             logger.error(f"Error preparing features: {e}")
             return pd.DataFrame()
     
-    def collect_all_symbols_data(self, years: int = 5) -> Dict[str, Any]:
-        """Collect data for all major Indian indices"""
-        try:
-            logger.info(f"Collecting {years} years of data for all Indian indices")
-            
-            results = {}
-            total_data_points = 0
-            
-            for symbol in self.symbol_mappings.keys():
-                try:
-                    result = self.collect_historical_data(symbol, years)
-                    if 'error' not in result:
-                        results[symbol] = result
-                        total_data_points += result['data_points']
-                        logger.info(f"Successfully collected data for {symbol}: {result['data_points']} points")
-                    else:
-                        logger.warning(f"Failed to collect data for {symbol}: {result['error']}")
-                        
-                except Exception as e:
-                    logger.error(f"Error collecting data for {symbol}: {e}")
-            
-            summary = {
-                'symbols_collected': list(results.keys()),
-                'total_symbols': len(results),
-                'total_data_points': total_data_points,
-                'collection_summary': results,
-                'collected_at': datetime.now().isoformat(),
-                'years_collected': years,
-                'database_path': str(self.db_path)
-            }
-            
-            logger.info(f"Data collection completed: {len(results)} symbols, {total_data_points} total data points")
-            return summary
-            
-        except Exception as e:
-            logger.error(f"Error in bulk data collection: {e}")
-            return {'error': str(e)}
+
 
 # Global instance
 historical_data_manager = HistoricalDataManager()

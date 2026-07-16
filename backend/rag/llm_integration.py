@@ -6,7 +6,7 @@ Handles communication with language models for generating responses
 import os
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import requests
 from datetime import datetime
 
@@ -17,25 +17,60 @@ logger = logging.getLogger(__name__)
 class LLMIntegration:
     """Handles LLM communication for generating trading responses"""
     
-    def __init__(self, api_key: str = None, model: str = "gpt-3.5-turbo"):
+    def __init__(self, provider: str = None, api_key: str = None, model: str = None):
         """
         Initialize LLM integration
         
         Args:
-            api_key: OpenAI API key (if None, will try to get from environment)
+            provider: 'openai', 'gemini', or 'mock'. If None, loads from LLM_PROVIDER env var or auto-detects.
+            api_key: LLM API key (if None, will try to get from environment)
             model: LLM model to use
         """
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
-        self.model = model
-        self.base_url = "https://api.openai.com/v1/chat/completions"
+        # Determine provider preference
+        env_provider = os.getenv('LLM_PROVIDER', '').lower()
+        self.provider = provider or (env_provider if env_provider in ['openai', 'gemini', 'mock'] else None)
         
-        # Fallback to mock responses if no API key
-        self.use_mock = not self.api_key
+        # Load keys
+        self.openai_key = os.getenv('OPENAI_API_KEY')
+        self.gemini_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
         
-        if self.use_mock:
-            logger.warning("No OpenAI API key found. Using mock responses.")
+        # If API key is explicitly provided, map it to the active provider
+        if api_key:
+            if self.provider == "gemini":
+                self.gemini_key = api_key
+            else:
+                # Default to openai if not specified
+                self.openai_key = api_key
+                self.provider = "openai"
+
+        # Auto-detect if provider not set
+        if not self.provider:
+            if self.openai_key:
+                self.provider = "openai"
+            elif self.gemini_key:
+                self.provider = "gemini"
+            else:
+                self.provider = "mock"
+
+        # Set up based on provider
+        if self.provider == "openai" and self.openai_key:
+            self.api_key = self.openai_key
+            self.model = model or os.getenv('OPENAI_MODEL') or "gpt-3.5-turbo"
+            self.base_url = "https://api.openai.com/v1/chat/completions"
+            self.use_mock = False
+            logger.info(f"LLM integration initialized with OpenAI API ({self.model})")
+        elif self.provider == "gemini" and self.gemini_key:
+            self.api_key = self.gemini_key
+            self.model = model or os.getenv('GEMINI_MODEL') or "gemini-3.5-flash"
+            self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+            self.use_mock = False
+            logger.info(f"LLM integration initialized with Google Gemini API ({self.model})")
         else:
-            logger.info("LLM integration initialized with OpenAI API")
+            self.provider = "mock"
+            self.api_key = None
+            self.model = "mock"
+            self.use_mock = True
+            logger.warning("No valid API key or selected provider found. Using mock responses.")
     
     def generate_response(self, prompt: str, max_tokens: int = 500) -> Dict[str, Any]:
         """
@@ -51,12 +86,19 @@ class LLMIntegration:
         if self.use_mock:
             return self._generate_mock_response(prompt)
         
+        if self.provider == "openai":
+            return self._generate_openai_response(prompt, max_tokens)
+        elif self.provider == "gemini":
+            return self._generate_gemini_response(prompt, max_tokens)
+        else:
+            return self._generate_mock_response(prompt)
+            
+    def _generate_openai_response(self, prompt: str, max_tokens: int) -> Dict[str, Any]:
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
-            
             payload = {
                 "model": self.model,
                 "messages": [
@@ -70,23 +112,12 @@ class LLMIntegration:
                     }
                 ],
                 "max_tokens": max_tokens,
-                "temperature": 0.7,
-                "top_p": 1,
-                "frequency_penalty": 0,
-                "presence_penalty": 0
+                "temperature": 0.7
             }
-            
-            response = requests.post(
-                self.base_url,
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
-            
+            response = requests.post(self.base_url, headers=headers, json=payload, timeout=30)
             if response.status_code == 200:
                 result = response.json()
                 message = result['choices'][0]['message']['content']
-                
                 return {
                     'success': True,
                     'response': message,
@@ -98,12 +129,70 @@ class LLMIntegration:
                 logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
                 return {
                     'success': False,
-                    'error': f"API Error: {response.status_code}",
+                    'error': f"OpenAI API Error: {response.status_code}",
                     'fallback_response': self._generate_mock_response(prompt)['response']
                 }
-                
         except Exception as e:
-            logger.error(f"Error generating LLM response: {e}")
+            logger.error(f"Error in OpenAI response: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'fallback_response': self._generate_mock_response(prompt)['response']
+            }
+
+    def _generate_gemini_response(self, prompt: str, max_tokens: int) -> Dict[str, Any]:
+        try:
+            headers = {
+                "Content-Type": "application/json"
+            }
+            # System instructions are combined into system prompt/context for Gemini
+            system_instruction = "You are a professional trading assistant with expertise in technical analysis, risk management, and market psychology. Provide accurate, helpful, and responsible trading advice."
+            full_prompt = f"{system_instruction}\n\nUser Question:\n{prompt}"
+            
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": full_prompt}
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": max_tokens,
+                    "temperature": 0.7
+                }
+            }
+            response = requests.post(self.base_url, headers=headers, json=payload, timeout=30)
+            if response.status_code == 200:
+                result = response.json()
+                # Parse candidates[0].content.parts[0].text
+                candidates = result.get('candidates', [])
+                if candidates:
+                    parts = candidates[0].get('content', {}).get('parts', [])
+                    if parts:
+                        message = parts[0].get('text', '')
+                        return {
+                            'success': True,
+                            'response': message,
+                            'model': self.model,
+                            'tokens_used': None,
+                            'timestamp': datetime.now().isoformat()
+                        }
+                logger.error(f"Gemini API returned invalid response structure: {result}")
+                return {
+                    'success': False,
+                    'error': "Invalid API response structure",
+                    'fallback_response': self._generate_mock_response(prompt)['response']
+                }
+            else:
+                logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+                return {
+                    'success': False,
+                    'error': f"Gemini API Error: {response.status_code}",
+                    'fallback_response': self._generate_mock_response(prompt)['response']
+                }
+        except Exception as e:
+            logger.error(f"Error in Gemini response: {e}")
             return {
                 'success': False,
                 'error': str(e),

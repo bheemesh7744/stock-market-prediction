@@ -3,7 +3,7 @@ Strategy Agent - Determines possible trading strategies based on market analysis
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from datetime import datetime
 import sys
 import os
@@ -344,10 +344,4 @@ class StrategyAgent:
 # Global strategy agent instance
 strategy_agent = StrategyAgent()
 
-def analyze_trading_strategies(symbol: str, indicators: Dict[str, Any], market_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Analyze trading strategies for a symbol"""
-    return strategy_agent.analyze_strategy_opportunities(symbol, indicators, market_data)
 
-def get_strategy_recommendation(symbol: str, analysis_result: Dict[str, Any]) -> Dict[str, Any]:
-    """Get strategy recommendation"""
-    return strategy_agent.get_strategy_recommendations(symbol, analysis_result)

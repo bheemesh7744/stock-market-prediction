@@ -5,8 +5,7 @@ Market Agent - Processes real-time market data and calculates technical indicato
 import logging
 from typing import Dict, Any, List
 from datetime import datetime
-import sys
-import os
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class MarketAgent:
         """Process incoming market data and update technical indicators"""
         try:
             # Import here to avoid circular import
-            from perfect_indian_app import calculate_technical_indicators
+            from market_engine import calculate_technical_indicators
             
             current_price = market_data.get('price', 0)
             
@@ -151,10 +150,4 @@ def process_market_tick(symbol: str, market_data: Dict[str, Any]) -> Dict[str, A
     """Process a single market tick"""
     return market_agent.process_market_data(symbol, market_data)
 
-def get_market_analysis(symbols: List[str]) -> Dict[str, Any]:
-    """Get comprehensive market analysis"""
-    return market_agent.get_market_summary(symbols)
 
-def detect_anomalies(symbol: str) -> Dict[str, Any]:
-    """Detect market anomalies"""
-    return market_agent.detect_market_anomalies(symbol)

@@ -4,7 +4,7 @@ Risk Agent - Calculates volatility, drawdown risk, and confidence scores
 
 import logging
 from typing import Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime
 import sys
 import os
 import math
@@ -362,10 +362,4 @@ class RiskAgent:
 # Global risk agent instance
 risk_agent = RiskAgent()
 
-def calculate_risk_metrics(symbol: str, market_data: Dict[str, Any], indicators: Dict[str, Any]) -> Dict[str, Any]:
-    """Calculate risk metrics for a symbol"""
-    return risk_agent.calculate_risk_metrics(symbol, market_data, indicators)
 
-def get_portfolio_risk(symbols: List[str]) -> Dict[str, Any]:
-    """Get portfolio risk summary"""
-    return risk_agent.get_portfolio_risk_summary(symbols)

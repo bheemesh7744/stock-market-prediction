@@ -1,0 +1,19 @@
+# Render Blueprint — Agentic AI Trader
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: agentic-ai-trader
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements_render.txt
+    startCommand: gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT perfect_indian_app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.4"
+      - key: PORT
+        value: "10000"
+      - key: SECRET_KEY
+        generateValue: true
+    autoDeploy: true
+    healthCheckPath: /api/health
