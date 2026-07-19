@@ -669,8 +669,8 @@ def get_symbol_ai_analysis_fast(symbol):
         # Generate lightweight predictions for fast mode
         prediction_data = generate_fast_predictions(symbol, current_data, technical_indicators)
         
-        # Get news & sentiment
-        news_data = fetch_news_and_sentiment(symbol)
+        # Skip news in fast mode to avoid external API latency on cold starts
+        news_data = {'articles': [], 'news_sentiment_score': 0.0, 'news_sentiment_label': 'Neutral'}
         
         # Create fast analysis response
         fast_analysis = {

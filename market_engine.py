@@ -219,13 +219,20 @@ elif not _secret_key:
     _secret_key = 'dev-only-insecure-key-do-not-use-in-production'
 app.config['SECRET_KEY'] = _secret_key
 app.permanent_session_lifetime = timedelta(days=30)
-# Security: Restrict CORS to localhost origins only (not wildcard)
+# Security: Restrict CORS to known origins (localhost + Render deployment)
 _ALLOWED_ORIGINS = [
     'http://localhost:5008', 'http://127.0.0.1:5008',
     'http://localhost:5009', 'http://127.0.0.1:5009',
     f"http://localhost:{os.environ.get('PORT', '5008')}",
+    'https://agentic-ai-trader-y0xc.onrender.com',
 ]
-socketio = SocketIO(app, cors_allowed_origins=_ALLOWED_ORIGINS, async_mode='threading')
+# On Render, allow all origins so the deployed domain always works
+if os.environ.get('RENDER'):
+    _ALLOWED_ORIGINS = '*'
+# Auto-detect async mode: use 'eventlet' on Render (matching gunicorn --worker-class eventlet),
+# fall back to 'threading' for local development
+_async_mode = 'eventlet' if os.environ.get('RENDER') else 'threading'
+socketio = SocketIO(app, cors_allowed_origins=_ALLOWED_ORIGINS, async_mode=_async_mode)
 
 # Indian Market Configuration
 INDIAN_TIMEZONE = pytz.timezone('Asia/Kolkata')
