@@ -312,6 +312,121 @@ HTML_TEMPLATE = r"""
             to   { opacity: 1; transform: translateY(0) scale(1); }
         }
 
+        /* ── Options Chain ── */
+        .oc-tabs {
+            display: flex; gap: 2px; padding: 2px;
+            background: rgba(255,255,255,0.03); border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06); margin-bottom: 16px;
+        }
+        .oc-tab {
+            flex: 1; padding: 8px 16px; border-radius: 10px;
+            font-size: 0.75rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; color: #9ca3af; text-align: center;
+            background: transparent; border: none;
+        }
+        .oc-tab.active {
+            background: linear-gradient(135deg, rgba(16,185,129,0.8), rgba(20,184,166,0.8));
+            color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,0.2);
+        }
+        .oc-tab:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.04); }
+
+        .oc-expiry-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border-radius: 8px; font-size: 0.75rem;
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+            color: #e5e7eb;
+        }
+        .oc-expiry-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(16,185,129,0.3); }
+
+        .oc-expiry-sheet {
+            position: absolute; left: 0; right: 0; top: 100%;
+            background: rgba(10,17,15,0.98); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px; padding: 16px; margin-top: 8px;
+            z-index: 10; backdrop-filter: blur(20px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            animation: modalIn 0.25s ease-out;
+        }
+        .oc-expiry-option {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px; border-radius: 10px; cursor: pointer;
+            transition: all 0.15s; font-size: 0.85rem; color: #d1d5db;
+        }
+        .oc-expiry-option:hover { background: rgba(255,255,255,0.04); }
+        .oc-expiry-option.selected { color: #10b981; font-weight: 600; }
+        .oc-expiry-radio {
+            width: 20px; height: 20px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.15); display: flex;
+            align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .oc-expiry-option.selected .oc-expiry-radio {
+            border-color: #10b981; background: rgba(16,185,129,0.1);
+        }
+        .oc-expiry-option.selected .oc-expiry-radio::after {
+            content: ''; width: 10px; height: 10px; border-radius: 50%;
+            background: #10b981;
+        }
+
+        .oc-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .oc-table th {
+            padding: 8px 6px; font-size: 0.65rem; font-weight: 600;
+            text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em;
+            position: sticky; top: 0; background: rgba(10,17,15,0.95);
+            backdrop-filter: blur(8px); z-index: 2;
+        }
+        .oc-table td {
+            padding: 10px 6px; font-size: 0.8rem; font-weight: 500;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            transition: background 0.15s;
+        }
+        .oc-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .oc-table .strike-col {
+            text-align: center; font-weight: 700; color: #e5e7eb;
+            background: rgba(255,255,255,0.02); position: relative;
+        }
+        .oc-table .call-col { text-align: left; }
+        .oc-table .put-col { text-align: right; }
+        .oc-table .atm-row td {
+            background: rgba(234,179,8,0.08) !important;
+            border-top: 1px solid rgba(234,179,8,0.3);
+            border-bottom: 1px solid rgba(234,179,8,0.3);
+        }
+        .oc-table .atm-row .strike-col { color: #eab308; }
+        .oc-table .itm-call { background: rgba(16,185,129,0.03); }
+        .oc-table .itm-put { background: rgba(16,185,129,0.03); }
+
+        .oc-oi-bar {
+            height: 3px; border-radius: 2px; margin-top: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .oc-legend {
+            border-radius: 12px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.06);
+            transition: all 0.3s ease;
+        }
+        .oc-legend-toggle {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; cursor: pointer; width: 100%;
+            background: rgba(255,255,255,0.02); border: none;
+            color: #9ca3af; font-size: 0.75rem; font-weight: 600;
+            transition: all 0.2s;
+        }
+        .oc-legend-toggle:hover { background: rgba(255,255,255,0.04); color: #e5e7eb; }
+        .oc-legend-toggle i.rotate { transform: rotate(180deg); }
+        .oc-legend-body {
+            padding: 0 14px; max-height: 0; overflow: hidden;
+            transition: max-height 0.35s ease, padding 0.35s ease;
+        }
+        .oc-legend-body.open { max-height: 500px; padding: 12px 14px; }
+        .oc-legend-item {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 6px 0; font-size: 0.7rem; color: #9ca3af;
+        }
+        .oc-legend-dot {
+            width: 8px; height: 8px; border-radius: 50%; margin-top: 3px; flex-shrink: 0;
+        }
+
         /* ── Toast ── */
         .toast {
             position: fixed; top: 20px; right: 20px; z-index: 9999;
@@ -1956,7 +2071,16 @@ let currentChartType = 'candle';
             const recClass = (p.recommendation||'') === 'BUY CALL' ? 'profit' : (p.recommendation||'') === 'BUY PUT' ? 'loss' : 'text-gray-400';
             const recIcon = (p.recommendation||'') === 'BUY CALL' ? '🟢' : (p.recommendation||'') === 'BUY PUT' ? '🔴' : '⚪';
 
+            const currentSymbol = document.getElementById('aiModal').dataset.currentSymbol || '';
+            const showOCTab = ['NIFTY_50', 'BANK_NIFTY'].includes(currentSymbol);
+
             content.innerHTML = `
+                ${showOCTab ? `
+                <div class="oc-tabs mb-4">
+                    <button class="oc-tab active" onclick="switchOCTab('analysis')">📊 Analysis</button>
+                    <button class="oc-tab" onclick="switchOCTab('optionchain')">⛓️ Options Chain</button>
+                </div>` : ''}
+                <div id="oc-analysis-tab">
                 <div>
                     <div class="flex justify-between items-center mb-5">
                         <h3 class="text-lg font-bold">${data.display_name || ''}</h3>
@@ -2105,17 +2229,246 @@ let currentChartType = 'candle';
                         <ul class="text-xs text-gray-400 space-y-1">${data.risk_factors.slice(0,3).map(r => '<li>• ' + r + '</li>').join('')}</ul>
                     </div>
                     ` : ''}
-
                     <div class="text-[0.65rem] text-gray-600 pt-2" style="border-top:1px solid var(--border-subtle);">
                         <i class="far fa-clock mr-1"></i>
                         ${data.timestamp ? new Date(data.timestamp).toLocaleString('en-IN') : ''}
                         ${isRAG ? ' · Powered by RAG' : ''}
                     </div>
-                </div>
+                </div> <!-- Closes the inner div -->
+                </div><!-- end oc-analysis-tab -->
+                ${showOCTab ? `<div id="oc-chain-tab" style="display:none;"></div>` : ''}
             `;
         }
 
+        /* ═══════════════════ OPTIONS CHAIN ═══════════════════ */
+        function switchOCTab(tab) {
+            const tabs = document.querySelectorAll('.oc-tab');
+            tabs.forEach((t, i) => {
+                t.classList.toggle('active', (tab === 'analysis' && i === 0) || (tab === 'optionchain' && i === 1));
+            });
+            const analysisTab = document.getElementById('oc-analysis-tab');
+            const chainTab = document.getElementById('oc-chain-tab');
+            if (analysisTab) analysisTab.style.display = tab === 'analysis' ? '' : 'none';
+            if (chainTab) {
+                chainTab.style.display = tab === 'optionchain' ? '' : 'none';
+                if (tab === 'optionchain' && !chainTab.dataset.loaded) {
+                    const symbol = document.getElementById('aiModal').dataset.currentSymbol;
+                    loadOptionsChain(symbol);
+                }
+            }
+        }
 
+        function loadOptionsChain(symbol, expiry) {
+            const chainTab = document.getElementById('oc-chain-tab');
+            if (!chainTab) return;
+            chainTab.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-2 border-transparent border-t-emerald-500 mx-auto mb-3"></div>
+                    <p class="text-xs text-gray-500">Loading options chain...</p>
+                </div>`;
+            const url = expiry ? `/api/options-chain/${symbol}/${expiry}` : `/api/options-chain/${symbol}`;
+            apiFetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    chainTab.dataset.loaded = '1';
+                    renderOptionsChain(chainTab, data);
+                })
+                .catch(err => {
+                    chainTab.innerHTML = `<div class="text-center py-8"><div class="text-2xl mb-2">⚠️</div><p class="text-xs text-gray-400">${err.message || 'Failed to load options chain'}</p><button onclick="loadOptionsChain('${symbol}')" class="btn btn-blue text-xs mt-3">Retry</button></div>`;
+                });
+        }
+
+        function renderOptionsChain(container, data) {
+            const chain = data.chain || [];
+            const expiryDates = data.expiry_dates || [];
+            const selectedExpiry = data.selected_expiry || '';
+            const currentPrice = data.current_price || 0;
+            const atmStrike = data.atm_strike || 0;
+            const maxOI = Math.max(...chain.map(c => Math.max(c.call_oi || 0, c.put_oi || 0)), 1);
+            const symbol = data.symbol || '';
+
+            // Format expiry date for display
+            const fmtExpiry = (d) => {
+                const dt = new Date(d + 'T00:00:00');
+                return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+            };
+            const fmtExpiryFull = (d) => {
+                const dt = new Date(d + 'T00:00:00');
+                return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'long' });
+            };
+
+            container.innerHTML = `
+                <div style="position:relative;">
+                    <!-- Header -->
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold">${(symbol || '').replace('_', ' ')} Options</h3>
+                            <div class="text-[0.65rem] text-gray-500 mt-0.5">Current: ₹${Number(currentPrice).toLocaleString('en-IN', {minimumFractionDigits:2})}</div>
+                        </div>
+                        <div style="position:relative;" id="oc-expiry-wrapper">
+                            <button class="oc-expiry-btn" onclick="toggleExpirySheet()">
+                                <i class="far fa-calendar"></i>
+                                <span id="oc-selected-expiry">${fmtExpiry(selectedExpiry)}</span>
+                                <i class="fas fa-chevron-down" style="font-size:0.6rem;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Expiry Bottom Sheet (hidden by default) -->
+                    <div id="oc-expiry-sheet" class="oc-expiry-sheet" style="display:none;position:fixed;bottom:0;left:0;right:0;top:auto;border-radius:20px 20px 0 0;max-height:50vh;overflow-y:auto;z-index:100;">
+                        <div style="width:40px;height:4px;background:rgba(255,255,255,0.15);border-radius:4px;margin:0 auto 16px;"></div>
+                        <h4 class="text-sm font-bold mb-3">Select expiry date</h4>
+                        ${expiryDates.map(d => `
+                            <div class="oc-expiry-option ${d === selectedExpiry ? 'selected' : ''}" onclick="selectExpiry('${symbol}', '${d}')">
+                                <div class="oc-expiry-radio"></div>
+                                <span>${fmtExpiryFull(d)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Options Chain Table -->
+                <div style="max-height:400px;overflow-y:auto;border-radius:12px;border:1px solid rgba(255,255,255,0.06);" id="oc-table-scroll">
+                    <table class="oc-table">
+                        <thead>
+                            <tr>
+                                <th class="call-col" style="width:35%;color:#10b981;">Calls (Buy if UP 🟢)</th>
+                                <th style="width:30%;text-align:center;">Strike</th>
+                                <th class="put-col" style="width:35%;color:#ef4444;">Puts (Buy if DOWN 🔴)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${chain.map(row => {
+                                const isATM = row.strike === atmStrike;
+                                const isITMCall = row.strike < currentPrice;
+                                const isITMPut = row.strike > currentPrice;
+                                const callOIWidth = Math.round((row.call_oi / maxOI) * 100);
+                                const putOIWidth = Math.round((row.put_oi / maxOI) * 100);
+                                return `
+                                <tr class="${isATM ? 'atm-row' : ''} ${isITMCall ? 'itm-call' : ''}" ${isATM ? 'id="oc-atm-row"' : ''}>
+                                    <td class="call-col">
+                                        <div class="font-semibold" style="color:${row.call_change >= 0 ? '#10b981' : '#ef4444'}">₹${Number(row.call_price).toFixed(2)}</div>
+                                        <div style="font-size:0.6rem;color:${row.call_change >= 0 ? '#10b981' : '#ef4444'};opacity:0.8;">${row.call_change >= 0 ? '+' : ''}${Number(row.call_change).toFixed(2)}%</div>
+                                        <div class="oc-oi-bar" style="width:${callOIWidth}%;background:${isITMCall ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.3)'};"></div>
+                                    </td>
+                                    <td class="strike-col">
+                                        <div>${Number(row.strike).toLocaleString('en-IN')}</div>
+                                        ${isATM ? '<div style="font-size:0.55rem;color:#eab308;margin-top:2px;">◀ ATM ▶</div>' : ''}
+                                    </td>
+                                    <td class="put-col">
+                                        <div class="font-semibold" style="color:${row.put_change >= 0 ? '#10b981' : '#ef4444'}">₹${Number(row.put_price).toFixed(2)}</div>
+                                        <div style="font-size:0.6rem;color:${row.put_change >= 0 ? '#10b981' : '#ef4444'};opacity:0.8;">${row.put_change >= 0 ? '+' : ''}${Number(row.put_change).toFixed(2)}%</div>
+                                        <div class="oc-oi-bar" style="width:${putOIWidth}%;background:${isITMPut ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.3)'};margin-left:auto;"></div>
+                                    </td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ATM Price Indicator -->
+                <div class="flex justify-center mt-3 mb-4">
+                    <div class="text-[0.65rem] text-gray-500 px-3 py-1.5 rounded-full" style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.15);">
+                        ${Number(currentPrice).toLocaleString('en-IN', {minimumFractionDigits:2})} | ATM Strike: ${Number(atmStrike).toLocaleString('en-IN')}
+                    </div>
+                </div>
+
+                <!-- Color Legend -->
+                <div class="oc-legend">
+                    <button class="oc-legend-toggle" onclick="toggleOCLegend(this)">
+                        <i class="fas fa-circle-info" style="color:#10b981;"></i>
+                        <span>💡 What do these colors mean?</span>
+                        <i class="fas fa-chevron-down" style="margin-left:auto;font-size:0.6rem;transition:transform 0.3s;"></i>
+                    </button>
+                    <div class="oc-legend-body">
+                        <div class="text-[0.7rem] font-semibold text-gray-300 mb-2">Color Guide</div>
+                        <div class="oc-legend-item">
+                            <div class="oc-legend-dot" style="background:#10b981;"></div>
+                            <div><span class="text-gray-200 font-semibold">Green Price/% </span>— Price went UP today. Buyers are making profit.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <div class="oc-legend-dot" style="background:#ef4444;"></div>
+                            <div><span class="text-gray-200 font-semibold">Red Price/% </span>— Price went DOWN today. Value decreased.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <div class="oc-legend-dot" style="background:#eab308;"></div>
+                            <div><span class="text-gray-200 font-semibold">Yellow Row </span>— ATM (At The Money) — Strike closest to current market price.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <div class="oc-legend-dot" style="background:rgba(16,185,129,0.3);"></div>
+                            <div><span class="text-gray-200 font-semibold">Green Tint Rows </span>— ITM (In The Money) — These options already have real value.</div>
+                        </div>
+
+                        <div style="border-top:1px solid rgba(255,255,255,0.06);margin:10px 0;"></div>
+                        <div class="text-[0.7rem] font-semibold text-gray-300 mb-2">Quick Glossary</div>
+                        <div class="oc-legend-item">
+                            <span>📗</span>
+                            <div><span class="text-gray-200 font-semibold">Call Option (Green)</span> — Buy this if you expect the price to **GO UP**. You profit if the market rises above your strike price.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <span>📕</span>
+                            <div><span class="text-gray-200 font-semibold">Put Option (Red)</span> — Buy this if you expect the price to **GO DOWN**. You profit if the market falls below your strike price.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <span>🎯</span>
+                            <div><span class="text-gray-200 font-semibold">Strike Price</span> — The target price level you're betting on.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <span>📅</span>
+                            <div><span class="text-gray-200 font-semibold">Expiry Date</span> — Deadline for your option. After this, it expires worthless if not profitable.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <span>📊</span>
+                            <div><span class="text-gray-200 font-semibold">OI (Open Interest)</span> — Number of active contracts. Higher = more popular & liquid.</div>
+                        </div>
+                        <div class="oc-legend-item">
+                            <span>💰</span>
+                            <div><span class="text-gray-200 font-semibold">Premium (Price)</span> — Cost to buy the option. This is your maximum risk.</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Scroll to ATM row
+            setTimeout(() => {
+                const atmRow = document.getElementById('oc-atm-row');
+                const scrollContainer = document.getElementById('oc-table-scroll');
+                if (atmRow && scrollContainer) {
+                    const offset = atmRow.offsetTop - scrollContainer.offsetTop - (scrollContainer.clientHeight / 2) + (atmRow.clientHeight / 2);
+                    scrollContainer.scrollTop = offset;
+                }
+            }, 100);
+        }
+
+        function toggleExpirySheet() {
+            const sheet = document.getElementById('oc-expiry-sheet');
+            if (sheet) sheet.style.display = sheet.style.display === 'none' ? '' : 'none';
+        }
+
+        function selectExpiry(symbol, expiry) {
+            const sheet = document.getElementById('oc-expiry-sheet');
+            if (sheet) sheet.style.display = 'none';
+            const chainTab = document.getElementById('oc-chain-tab');
+            if (chainTab) chainTab.dataset.loaded = '';
+            loadOptionsChain(symbol, expiry);
+        }
+
+        function toggleOCLegend(btn) {
+            const body = btn.nextElementSibling;
+            const icon = btn.querySelector('.fa-chevron-down');
+            body.classList.toggle('open');
+            if (icon) icon.classList.toggle('rotate');
+        }
+
+        // Close expiry sheet on outside click
+        document.addEventListener('click', (e) => {
+            const sheet = document.getElementById('oc-expiry-sheet');
+            const wrapper = document.getElementById('oc-expiry-wrapper');
+            if (sheet && sheet.style.display !== 'none' && wrapper && !wrapper.contains(e.target) && !sheet.contains(e.target)) {
+                sheet.style.display = 'none';
+            }
+        });
 
         // Cleanup
         window.addEventListener('beforeunload', () => {

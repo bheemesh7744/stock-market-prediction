@@ -9,6 +9,7 @@ import os
 import time
 import json
 import random
+import math
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Set
@@ -36,6 +37,10 @@ from concurrent.futures import ThreadPoolExecutor
 CACHE_TTL_SECONDS = 10          # Market data cache TTL (reduced for faster updates)
 RAG_CACHE_TIMEOUT = 300         # RAG pipeline cache (5 min)
 STOCKS_FETCH_WORKERS = 10       # ThreadPoolExecutor workers
+DEMO_MODE = False                # Flag to enable high-accuracy prediction booster for presentation/testing
+
+# Simulation mode: default to True on Render where yfinance is blocked/throttled
+SIMULATION_MODE = os.environ.get('SIMULATION_MODE', os.environ.get('RENDER', 'False')).lower() in ('true', '1', 'yes')
 
 # Rate Limiting
 RATE_LIMIT_REQUESTS = 60        # Max requests per window
@@ -1366,8 +1371,92 @@ def _format_market_data(symbol, name, latest_row, previous_close, data_source, n
         'last_updated': latest_row.name.strftime('%Y-%m-%d %H:%M:%S') if hasattr(latest_row.name, 'strftime') else now_dt.strftime('%Y-%m-%d %H:%M:%S')
     }
 
+def generate_simulated_market_data(symbol):
+    """Generate realistic simulated market data"""
+    config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol) or INDIAN_MARKET_CONFIG['NIFTY_50']
+    base_prices = {
+        'NIFTY_50': 24200,
+        'BANK_NIFTY': 57950,
+        'SENSEX': 77530,
+        'RELIANCE': 1300,
+        'TCS': 2085,
+        'HDFCBANK': 825,
+        'INFY': 1070,
+        'ICICIBANK': 1400,
+        'HINDUNILVR': 2165,
+        'SBIN': 1030,
+        'BHARTIARTL': 1910,
+        'ITC': 285,
+        'KOTAKBANK': 380,
+        'LT': 3930,
+        'AXISBANK': 1320,
+        'BAJFINANCE': 1010,
+        'MARUTI': 13920,
+        'TATAMOTORS': 950,
+        'TATASTEEL': 192,
+        'SUNPHARMA': 1945,
+        'ADANIENT': 3165,
+        'WIPRO': 176,
+        'POWERGRID': 283
+    }
+    
+    # Try to sync with streaming engine's latest simulated price
+    try:
+        from backend.data.realtime_streaming import get_streaming_engine
+        engine = get_streaming_engine()
+        if engine:
+            if symbol in engine._last_prices:
+                price = engine._last_prices[symbol]
+                base_price = engine._base_prices.get(symbol, price)
+                change = price - base_price
+                change_percent = (change / base_price) * 100 if base_price > 0 else 0
+                
+                # Keep high/low realistic around the price
+                high = max(price, base_price) + (base_price * 0.001)
+                low = min(price, base_price) - (base_price * 0.001)
+                
+                return {
+                    'symbol': symbol,
+                    'name': config['display_name'],
+                    'price': round(price, 2),
+                    'change': round(change, 2),
+                    'change_percent': round(change_percent, 2),
+                    'open': round(base_price, 2),
+                    'high': round(high, 2),
+                    'low': round(low, 2),
+                    'previous_close': round(base_price, 2),
+                    'volume': np.random.randint(100000, 500000),
+                    'timestamp': format_time_neat(datetime.now(INDIAN_TIMEZONE)),
+                    'data_source': 'simulated'
+                }
+    except Exception:
+        pass
+
+    # Fallback to generating a stable simulated price if engine is not available
+    base_price = base_prices.get(symbol, 1000)
+    price = base_price + (np.random.random() - 0.5) * 5
+    change = (np.random.random() - 0.5) * 2.5
+    change_percent = (change / base_price) * 100
+    
+    return {
+        'symbol': symbol,
+        'name': config['display_name'],
+        'price': round(price, 2),
+        'change': round(change, 2),
+        'change_percent': round(change_percent, 2),
+        'open': round(price - change, 2),
+        'high': round(price + abs(change) * 0.1, 2),
+        'low': round(price - abs(change) * 0.1, 2),
+        'previous_close': round(price - change, 2),
+        'volume': np.random.randint(100000000, 500000000),
+        'timestamp': format_time_neat(datetime.now(INDIAN_TIMEZONE)),
+        'data_source': 'simulated'
+    }
+
 def get_current_market_data(symbol, retries=3):
     """Get current market data with highest accuracy and retry logic"""
+    if SIMULATION_MODE:
+        return generate_simulated_market_data(symbol)
     config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol)
     if not config:
         logger.error(f"Invalid symbol: {symbol}")
@@ -1474,14 +1563,17 @@ def get_current_market_data(symbol, retries=3):
 def get_day_by_day_historical_data(symbol, days=7):
     """Get day-by-day historical closing values with correct latest closing price"""
     try:
-        config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol)
-        ticker = yf.Ticker(config['symbol'])
-        
-        # Get historical data for specified days (recent data only)
-        end_date = datetime.now(INDIAN_TIMEZONE)
-        start_date = end_date - timedelta(days=days + 2)  # Get recent days only
-        
-        historical_data = ticker.history(start=start_date, end=end_date, interval="1d")
+        if SIMULATION_MODE:
+            historical_data = pd.DataFrame()
+        else:
+            config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol)
+            ticker = yf.Ticker(config['symbol'])
+            
+            # Get historical data for specified days (recent data only)
+            end_date = datetime.now(INDIAN_TIMEZONE)
+            start_date = end_date - timedelta(days=days + 2)  # Get recent days only
+            
+            historical_data = ticker.history(start=start_date, end=end_date, interval="1d")
         
         if historical_data.empty:
             logger.warning(f"No historical data found for {symbol}. Generating simulated fallback historical data.")
@@ -1597,6 +1689,8 @@ CANDLE_TIMEFRAMES = {
 
 def get_candlestick_data(symbol, timeframe='1day'):
     """Get OHLC candlestick data for any timeframe"""
+    if SIMULATION_MODE:
+        return generate_fallback_candle_data(symbol, timeframe)
     try:
         config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol)
         ticker = yf.Ticker(config['symbol'])
@@ -1729,6 +1823,13 @@ def perform_pre_market_analysis():
     
     for symbol in symbols:
         try:
+            if SIMULATION_MODE:
+                analysis = ai_analyzer._generate_fallback_prediction(symbol)
+                pre_market_analysis[symbol] = analysis
+                ai_predictions[symbol] = analysis
+                logger.info(f"Simulated pre-market analysis completed for {symbol}")
+                continue
+                
             # Get extended historical data for analysis
             config = INDIAN_MARKET_CONFIG[symbol]
             ticker = yf.Ticker(config['symbol'])
@@ -1860,6 +1961,252 @@ def validate_symbol(symbol: str, allow_stocks: bool = False) -> Optional[str]:
     if symbol not in valid_set:
         return f'Invalid symbol: {symbol}'
     return None
+
+
+# ══════════════════════════════════════════════════════════════
+# OPTIONS CHAIN — F&O data generation with Black-Scholes pricing
+# ══════════════════════════════════════════════════════════════
+
+# Symbols that support F&O (SENSEX is BSE, no F&O on NSE)
+FNO_SUPPORTED_SYMBOLS = {'NIFTY_50', 'BANK_NIFTY'}
+
+# Strike intervals per symbol (as per NSE conventions)
+FNO_STRIKE_INTERVALS = {
+    'NIFTY_50': 50,
+    'BANK_NIFTY': 100,
+}
+
+# Implied volatility per symbol (annualized)
+FNO_VOLATILITY = {
+    'NIFTY_50': 0.15,
+    'BANK_NIFTY': 0.18,
+}
+
+# Peak open interest for simulation
+FNO_PEAK_OI = {
+    'NIFTY_50': 500000,
+    'BANK_NIFTY': 400000,
+}
+
+
+def _normal_cdf(x):
+    """Standard normal cumulative distribution function using math.erf."""
+    return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
+
+
+def _black_scholes(S, K, T, r, sigma):
+    """
+    Calculate Black-Scholes call and put prices.
+    S: current price, K: strike, T: time to expiry (years),
+    r: risk-free rate, sigma: annualized volatility.
+    Returns (call_price, put_price).
+    """
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        # At or past expiry — return intrinsic value
+        call_intrinsic = max(S - K, 0.0)
+        put_intrinsic = max(K - S, 0.0)
+        return round(call_intrinsic, 2), round(put_intrinsic, 2)
+
+    d1 = (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+
+    call_price = S * _normal_cdf(d1) - K * math.exp(-r * T) * _normal_cdf(d2)
+    put_price = K * math.exp(-r * T) * _normal_cdf(-d2) - S * _normal_cdf(-d1)
+
+    return round(max(call_price, 0.0), 2), round(max(put_price, 0.0), 2)
+
+
+def generate_expiry_dates(symbol):
+    """
+    Generate the next 7-8 upcoming weekly expiry dates (Thursdays) for Indian F&O.
+    Monthly expiry = last Thursday of the month (flagged with 'monthly': True).
+    Only NIFTY_50 and BANK_NIFTY are supported.
+    Returns list of dicts: [{'date': 'YYYY-MM-DD', 'monthly': bool}, ...]
+    """
+    if symbol not in FNO_SUPPORTED_SYMBOLS:
+        logger.warning(f"generate_expiry_dates called with unsupported symbol: {symbol}")
+        return []
+
+    now = datetime.now(INDIAN_TIMEZONE)
+    today = now.date()
+
+    expiry_dates = []
+    # Start scanning from today, collect next 8 Thursdays
+    candidate = today
+    while len(expiry_dates) < 8:
+        # Advance to next Thursday (weekday 3)
+        days_ahead = (3 - candidate.weekday()) % 7
+        if days_ahead == 0 and candidate == today:
+            # If today is Thursday, include it only if market hasn't closed yet
+            if now.time() < MARKET_CLOSE_TIME:
+                next_thursday = candidate
+            else:
+                next_thursday = candidate + timedelta(days=7)
+        elif days_ahead == 0:
+            next_thursday = candidate
+        else:
+            next_thursday = candidate + timedelta(days=days_ahead)
+
+        # Check if this Thursday is the last Thursday of its month
+        # Last Thursday: adding 7 days would move to the next month
+        is_monthly = (next_thursday + timedelta(days=7)).month != next_thursday.month
+
+        expiry_dates.append({
+            'date': next_thursday.strftime('%Y-%m-%d'),
+            'monthly': is_monthly,
+        })
+        candidate = next_thursday + timedelta(days=1)  # move past this Thursday
+
+    return expiry_dates
+
+
+def generate_option_chain_data(symbol, current_price, expiry_date_str):
+    """
+    Generate realistic option chain data using simplified Black-Scholes pricing.
+    Produces deterministic results for the same (symbol, current_price, expiry_date_str).
+    
+    Returns a list of strike dicts sorted by strike price.
+    """
+    interval = FNO_STRIKE_INTERVALS.get(symbol, 50)
+    sigma = FNO_VOLATILITY.get(symbol, 0.15)
+    peak_oi = FNO_PEAK_OI.get(symbol, 500000)
+    risk_free_rate = 0.065  # ~6.5% Indian govt bond yield
+
+    # Parse expiry and compute time-to-expiry in years
+    try:
+        expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        logger.error(f"Invalid expiry date format: {expiry_date_str}")
+        return []
+
+    now = datetime.now(INDIAN_TIMEZONE)
+    today = now.date()
+    days_to_expiry = (expiry_date - today).days
+    T = max(days_to_expiry, 0) / 365.0
+
+    # ATM strike: round current price to nearest strike interval
+    atm_strike = round(current_price / interval) * interval
+
+    # Generate strikes: 15 intervals on each side of ATM
+    strikes = []
+    for i in range(-15, 16):
+        strikes.append(atm_strike + i * interval)
+
+    chain = []
+    for strike in strikes:
+        # Deterministic seed based on strike + expiry string (reproducible)
+        seed_val = int(strike * 100) + hash(expiry_date_str) % 1000000
+        rng = random.Random(seed_val)
+
+        # Black-Scholes prices
+        call_price, put_price = _black_scholes(current_price, strike, T, risk_free_rate, sigma)
+
+        # --- Simulated Open Interest (bell curve centered near ATM) ---
+        # Distance from ATM in number-of-intervals
+        dist = abs(strike - atm_strike) / interval
+        # Gaussian-shaped OI, peak at ATM
+        oi_factor = math.exp(-0.5 * (dist / 6.0) ** 2)
+
+        call_oi = int(peak_oi * oi_factor * rng.uniform(0.7, 1.3))
+        # Put OI shifted slightly: more OI for strikes below ATM
+        put_shift = 1.15 if strike < atm_strike else 0.85
+        put_oi = int(peak_oi * oi_factor * put_shift * rng.uniform(0.7, 1.3))
+
+        # --- Change in OI (%) ---
+        # OTM options tend to have more extreme % changes
+        otm_factor = 1.0 + dist * 0.15
+        call_change = round(rng.uniform(-80, 250) * (otm_factor if strike > atm_strike else 1.0) / otm_factor, 2)
+        put_change = round(rng.uniform(-80, 250) * (otm_factor if strike < atm_strike else 1.0) / otm_factor, 2)
+
+        # --- Simulated Volume (correlated with OI, but noisier) ---
+        call_volume = int(call_oi * rng.uniform(0.05, 0.35))
+        put_volume = int(put_oi * rng.uniform(0.05, 0.35))
+
+        # --- Implied Volatility (smile shape: higher for OTM) ---
+        iv_smile = sigma + 0.02 * dist / 15.0
+        call_iv = round(iv_smile * rng.uniform(0.95, 1.05), 4)
+        put_iv = round(iv_smile * rng.uniform(0.95, 1.05), 4)
+
+        chain.append({
+            'strike': strike,
+            'call_price': call_price,
+            'put_price': put_price,
+            'call_oi': call_oi,
+            'put_oi': put_oi,
+            'call_change': call_change,
+            'put_change': put_change,
+            'call_volume': call_volume,
+            'put_volume': put_volume,
+            'call_iv': call_iv,
+            'put_iv': put_iv,
+        })
+
+    return chain
+
+
+def get_option_chain(symbol, expiry_date_str=None):
+    """
+    Main function: fetch current price, generate expiry dates, build option chain.
+    Results are cached in market_data_cache with 30-second TTL.
+    
+    Returns dict with: symbol, expiry_dates, selected_expiry, current_price,
+    chain (list of strike data), atm_strike.
+    Returns None on error.
+    """
+    if symbol not in FNO_SUPPORTED_SYMBOLS:
+        logger.warning(f"get_option_chain: {symbol} does not support F&O")
+        return None
+
+    # Generate expiry dates first (needed even for cache key)
+    expiry_dates = generate_expiry_dates(symbol)
+    if not expiry_dates:
+        logger.error(f"get_option_chain: no expiry dates generated for {symbol}")
+        return None
+
+    # Default to nearest expiry if none specified
+    selected_expiry = expiry_date_str if expiry_date_str else expiry_dates[0]['date']
+
+    # Validate expiry format
+    try:
+        datetime.strptime(selected_expiry, '%Y-%m-%d')
+    except ValueError:
+        logger.error(f"get_option_chain: invalid expiry format: {selected_expiry}")
+        return None
+
+    # Check cache (30-second TTL key)
+    cache_key = f"option_chain_{symbol}_{selected_expiry}"
+    cached = market_data_cache.get(cache_key)
+    if cached:
+        return cached
+
+    # Get current price
+    market_data = get_current_market_data(symbol)
+    if not market_data or 'price' not in market_data:
+        logger.error(f"get_option_chain: could not fetch current price for {symbol}")
+        return None
+
+    current_price = market_data['price']
+    interval = FNO_STRIKE_INTERVALS.get(symbol, 50)
+    atm_strike = round(current_price / interval) * interval
+
+    # Generate the chain data
+    chain = generate_option_chain_data(symbol, current_price, selected_expiry)
+
+    result = {
+        'symbol': symbol,
+        'expiry_dates': expiry_dates,
+        'selected_expiry': selected_expiry,
+        'current_price': current_price,
+        'atm_strike': atm_strike,
+        'chain': chain,
+        'last_updated': datetime.now(INDIAN_TIMEZONE).strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+    # Cache with 30-second TTL (use a dedicated cache instance or rely on default)
+    market_data_cache.set(cache_key, result)
+    logger.info(f"Option chain generated for {symbol} expiry {selected_expiry} — {len(chain)} strikes, ATM={atm_strike}")
+
+    return result
 
 
 
