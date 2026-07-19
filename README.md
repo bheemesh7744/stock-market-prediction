@@ -1,13 +1,3 @@
----
-title: Agentic AI Trader
-emoji: 📈
-colorFrom: green
-colorTo: teal
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # 🚀 Agentic AI Trader — Indian Market Intelligence
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
