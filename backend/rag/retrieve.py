@@ -5,7 +5,7 @@ Uses ChromaDB to retrieve relevant trading strategy documents for user queries
 
 import os
 from typing import List, Dict, Any, Optional
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 import logging
@@ -31,15 +31,15 @@ class TradingDocumentRetriever:
         self.vector_store = None
         self._load_vector_store()
     
-    def _initialize_embeddings(self) -> HuggingFaceEmbeddings:
-        """Initialize HuggingFace embeddings model (same as embed.py)"""
+    def _initialize_embeddings(self) -> GoogleGenerativeAIEmbeddings:
+        """Initialize Google Gemini embeddings model (same as embed.py)"""
         try:
-            embeddings = HuggingFaceEmbeddings(
-                model_name="sentence-transformers/all-MiniLM-L6-v2",
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
+            api_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+            embeddings = GoogleGenerativeAIEmbeddings(
+                model="models/embedding-001",
+                google_api_key=api_key
             )
-            logger.info("Successfully initialized HuggingFace embeddings")
+            logger.info("Successfully initialized Google Gemini embeddings")
             return embeddings
         except Exception as e:
             logger.error(f"Failed to initialize embeddings: {e}")

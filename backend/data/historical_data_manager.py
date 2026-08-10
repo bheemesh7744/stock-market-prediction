@@ -141,12 +141,15 @@ class HistoricalDataManager:
             self._store_market_sentiment(symbol, sentiment_data)
             
             # Create summary
+            start_date = pd.to_datetime(processed_data['date'].iloc[0]).strftime('%Y-%m-%d') if 'date' in processed_data.columns else str(processed_data.index[0])
+            end_date = pd.to_datetime(processed_data['date'].iloc[-1]).strftime('%Y-%m-%d') if 'date' in processed_data.columns else str(processed_data.index[-1])
+            
             summary = {
                 'symbol': symbol,
                 'data_points': len(processed_data),
                 'date_range': {
-                    'start': processed_data.index[0].strftime('%Y-%m-%d'),
-                    'end': processed_data.index[-1].strftime('%Y-%m-%d')
+                    'start': start_date,
+                    'end': end_date
                 },
                 'statistics': self._calculate_statistics(processed_data),
                 'data_quality': self._assess_data_quality(processed_data),
@@ -186,6 +189,10 @@ class HistoricalDataManager:
                 'Volume': 'volume',
                 'Adj Close': 'adjusted_close'
             }, inplace=True)
+            
+            # If yfinance doesn't return Adj Close, copy close column
+            if 'adjusted_close' not in processed.columns:
+                processed['adjusted_close'] = processed['close']
             
             # Calculate additional features
             processed['returns'] = processed['close'].pct_change()
@@ -324,13 +331,16 @@ class HistoricalDataManager:
         try:
             conn = sqlite3.connect(str(self.db_path))
             
+            # Delete existing data for this symbol to prevent duplicates
+            conn.execute("DELETE FROM daily_data WHERE symbol = ?", (symbol,))
+            
             # Prepare data for insertion
             data_to_insert = data[['date', 'open', 'high', 'low', 'close', 'volume', 'adjusted_close']].copy()
             data_to_insert['symbol'] = symbol
             data_to_insert['created_at'] = datetime.now().isoformat()
             
-            # Insert data
-            data_to_insert.to_sql('daily_data', conn, if_exists='replace', index=False)
+            # Insert data (append mode)
+            data_to_insert.to_sql('daily_data', conn, if_exists='append', index=False)
             
             conn.commit()
             conn.close()
@@ -345,13 +355,16 @@ class HistoricalDataManager:
         try:
             conn = sqlite3.connect(str(self.db_path))
             
+            # Delete existing technical indicators for this symbol
+            conn.execute("DELETE FROM technical_indicators WHERE symbol = ?", (symbol,))
+            
             # Prepare data
             indicators_to_store = indicators.copy()
             indicators_to_store['symbol'] = symbol
             indicators_to_store['created_at'] = datetime.now().isoformat()
             
-            # Store indicators
-            indicators_to_store.to_sql('technical_indicators', conn, if_exists='replace', index=False)
+            # Store indicators (append mode)
+            indicators_to_store.to_sql('technical_indicators', conn, if_exists='append', index=False)
             
             conn.commit()
             conn.close()
@@ -366,13 +379,16 @@ class HistoricalDataManager:
         try:
             conn = sqlite3.connect(str(self.db_path))
             
+            # Delete existing market sentiment for this symbol
+            conn.execute("DELETE FROM market_sentiment WHERE symbol = ?", (symbol,))
+            
             # Prepare data
             sentiment_to_store = sentiment.copy()
             sentiment_to_store['symbol'] = symbol
             sentiment_to_store['created_at'] = datetime.now().isoformat()
             
-            # Store sentiment
-            sentiment_to_store.to_sql('market_sentiment', conn, if_exists='replace', index=False)
+            # Store sentiment (append mode)
+            sentiment_to_store.to_sql('market_sentiment', conn, if_exists='append', index=False)
             
             conn.commit()
             conn.close()
@@ -453,32 +469,32 @@ class HistoricalDataManager:
         try:
             conn = sqlite3.connect(str(self.db_path))
             
-            # Get daily data
-            daily_query = f"""
+            # Get daily data using parameterized queries
+            daily_query = """
                 SELECT * FROM daily_data 
-                WHERE symbol = '{symbol}' 
+                WHERE symbol = ? 
                 ORDER BY date DESC 
-                LIMIT {lookback_days}
+                LIMIT ?
             """
-            daily_data = pd.read_sql_query(daily_query, conn)
+            daily_data = pd.read_sql_query(daily_query, conn, params=(symbol, lookback_days))
             
-            # Get technical indicators
-            indicators_query = f"""
+            # Get technical indicators using parameterized queries
+            indicators_query = """
                 SELECT * FROM technical_indicators 
-                WHERE symbol = '{symbol}' 
+                WHERE symbol = ? 
                 ORDER BY date DESC 
-                LIMIT {lookback_days}
+                LIMIT ?
             """
-            indicators_data = pd.read_sql_query(indicators_query, conn)
+            indicators_data = pd.read_sql_query(indicators_query, conn, params=(symbol, lookback_days))
             
-            # Get market sentiment
-            sentiment_query = f"""
+            # Get market sentiment using parameterized queries
+            sentiment_query = """
                 SELECT * FROM market_sentiment 
-                WHERE symbol = '{symbol}' 
+                WHERE symbol = ? 
                 ORDER BY date DESC 
-                LIMIT {lookback_days}
+                LIMIT ?
             """
-            sentiment_data = pd.read_sql_query(sentiment_query, conn)
+            sentiment_data = pd.read_sql_query(sentiment_query, conn, params=(symbol, lookback_days))
             
             conn.close()
             
@@ -520,14 +536,117 @@ class HistoricalDataManager:
             features = features.sort_values('date')
             
             # Fill missing values
-            features = features.fillna(method='ffill').fillna(method='bfill')
+            features = features.ffill().bfill()
             
             return features
             
         except Exception as e:
             logger.error(f"Error preparing features: {e}")
             return pd.DataFrame()
-    
+            
+    def train_model(self, symbol: str) -> Dict[str, Any]:
+        """Train LightGBM binary classifier for direction prediction and save model data"""
+        try:
+            logger.info(f"Starting LightGBM model training for {symbol}")
+            
+            # Load 2 years (approx 500 trading days) of historical data for robust training
+            training_data = self.get_training_data(symbol, lookback_days=500)
+            if 'error' in training_data:
+                return {'error': f"Failed to get training data: {training_data['error']}"}
+                
+            features_df = training_data['features']
+            if features_df.empty or len(features_df) < 50:
+                return {'error': f"Insufficient features to train model (got {len(features_df)} rows)"}
+                
+            # Create classification target: 1 if close tomorrow > close today, else 0
+            features_df['target'] = (features_df['close'].shift(-1) > features_df['close']).astype(int)
+            
+            # Drop the last row as it won't have a valid target (tomorrow's price is unknown)
+            features_df.dropna(subset=['target'], inplace=True)
+            
+            # Define feature columns
+            feature_cols = [
+                'open', 'high', 'low', 'close', 'volume',
+                'rsi_14', 'macd', 'macd_signal', 'bollinger_upper', 'bollinger_lower',
+                'sma_20', 'sma_50', 'ema_12', 'ema_26',
+                'atr', 'williams_r', 'stochastic',
+                'sentiment_score', 'news_count', 'volatility', 'trend_strength',
+                'day_of_week', 'month', 'quarter'
+            ]
+            
+            # Keep only the columns present in features_df
+            feature_cols = [c for c in feature_cols if c in features_df.columns]
+            
+            X = features_df[feature_cols]
+            y = features_df['target']
+            
+            # Time-series split (chronological): 85% train, 15% test
+            split_idx = int(len(X) * 0.85)
+            X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+            y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+            
+            logger.info(f"Data split - Train: {len(X_train)} rows, Test: {len(X_test)} rows")
+            
+            # Import LightGBM and joblib locally
+            import lightgbm as lgb
+            import joblib
+            
+            # Train the LightGBM classifier
+            model = lgb.LGBMClassifier(
+                n_estimators=100,
+                learning_rate=0.05,
+                max_depth=5,
+                num_leaves=31,
+                random_state=42,
+                verbose=-1
+            )
+            model.fit(X_train, y_train)
+            
+            # Predict and evaluate
+            y_pred = model.predict(X_test)
+            y_pred_list = y_pred.tolist()
+            y_test_list = y_test.tolist()
+            
+            tp = sum((y_test_list[i] == 1 and y_pred_list[i] == 1) for i in range(len(y_test_list)))
+            fp = sum((y_test_list[i] == 0 and y_pred_list[i] == 1) for i in range(len(y_test_list)))
+            fn = sum((y_test_list[i] == 1 and y_pred_list[i] == 0) for i in range(len(y_test_list)))
+            tn = sum((y_test_list[i] == 0 and y_pred_list[i] == 0) for i in range(len(y_test_list)))
+            
+            accuracy = (tp + tn) / len(y_test_list) if len(y_test_list) > 0 else 0.5
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.5
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.5
+            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.5
+            
+            # Get feature importance
+            importances = model.feature_importances_.tolist()
+            feature_importance = dict(zip(feature_cols, importances))
+            
+            # Save path
+            model_dir = Path("data/models")
+            model_dir.mkdir(parents=True, exist_ok=True)
+            model_path = model_dir / f"{symbol}_lightgbm.pkl"
+            
+            model_data = {
+                'symbol': symbol,
+                'feature_names': feature_cols,
+                'accuracy': round(accuracy, 4),
+                'precision': round(precision, 4),
+                'recall': round(recall, 4),
+                'f1_score': round(f1, 4),
+                'trained_at': datetime.now().isoformat(),
+                'data_points': len(X),
+                'feature_importance': feature_importance
+            }
+            
+            # Save the model object together with metadata
+            joblib.dump({'model': model, 'metadata': model_data}, str(model_path))
+            logger.info(f"Model saved successfully to {model_path} with test accuracy {accuracy:.4f}")
+            
+            return model_data
+            
+        except Exception as e:
+            logger.error(f"Error training model for {symbol}: {e}")
+            return {'error': str(e)}
 
 
 # Global instance
@@ -540,3 +659,7 @@ def collect_historical_data(symbol: str, years: int = 5) -> Dict[str, Any]:
 def get_training_data(symbol: str, lookback_days: int = 252) -> Dict[str, Any]:
     """Get training data for deep learning"""
     return historical_data_manager.get_training_data(symbol, lookback_days)
+
+def train_model(symbol: str) -> Dict[str, Any]:
+    """Train LightGBM model for a symbol"""
+    return historical_data_manager.train_model(symbol)

@@ -7,7 +7,7 @@ A Retrieval Augmented Generation (RAG) system that enhances the AI Trader with c
 The RAG system uses:
 - **LangChain** for document processing and embedding
 - **ChromaDB** as vector database for similarity search
-- **Sentence Transformers** for document embeddings
+- **Google Gemini** for document embeddings
 - **Trading Strategy Documents** as knowledge base
 
 ## Structure
@@ -31,7 +31,7 @@ backend/rag/
 ### Document Embedding (`embed.py`)
 - Loads trading strategy documents from data directory
 - Splits documents into manageable chunks
-- Creates embeddings using sentence transformers
+- Creates embeddings using Google Gemini embedding model
 - Stores embeddings in ChromaDB vector database
 - Supports adding new documents dynamically
 
@@ -57,7 +57,7 @@ backend/rag/
 
 1. Install required dependencies:
 ```bash
-pip install langchain chromadb sentence-transformers transformers torch
+pip install langchain chromadb langchain-google-genai
 ```
 
 2. The system will automatically initialize when the web application starts.
@@ -119,7 +119,7 @@ Content-Type: application/json
 ## Configuration
 
 ### Default Settings
-- **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2`
+- **Embedding Model**: Google Gemini `models/embedding-001`
 - **Vector Store**: ChromaDB with persistence
 - **Chunk Size**: 1000 characters with 200 character overlap
 - **Top Documents Retrieved**: 3

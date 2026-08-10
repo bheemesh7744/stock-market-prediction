@@ -7,15 +7,34 @@ Imports data/analysis engine and HTML template from separate modules.
 
 # Import everything from the engine (config, classes, app, socketio, data functions, etc.)
 from market_engine import *
+from backend.agents.mutual_fund_engine import (
+    get_all_mutual_funds,
+    get_mutual_fund_detail,
+    predict_mutual_fund_nav
+)
 
 from flask import Blueprint
 
 api_bp = Blueprint('api', __name__)
 
 
-from flask import request, jsonify, session
+from flask import request, jsonify, session, current_app
 from functools import wraps
 import secrets
+import jwt
+import os
+
+def _verify_jwt():
+    """Verify JWT from Authorization header and return payload if valid."""
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+        try:
+            secret = os.environ.get('JWT_SECRET', current_app.config.get('SECRET_KEY', 'dev-jwt-secret'))
+            return jwt.decode(token, secret, algorithms=['HS256'])
+        except Exception:
+            return None
+    return None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -27,11 +46,17 @@ def login_required(f):
     Sets `g.user_id` and `g.username` for use in the route handler."""
     @wraps(f)
     def decorated(*args, **kwargs):
+        from flask import g
+        payload = _verify_jwt()
+        if payload:
+            g.user_id = payload.get('user_id')
+            g.username = payload.get('username')
+            return f(*args, **kwargs)
+
         user_id = session.get('user_id')
         if not user_id:
             return api_error('Authentication required. Please login.', 401)
         # Make user_id available via flask.g for convenience
-        from flask import g
         g.user_id = user_id
         g.username = session.get('username')
         return f(*args, **kwargs)
@@ -70,12 +95,118 @@ def csrf_protect(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
+            if _verify_jwt():
+                return f(*args, **kwargs)
             token = request.headers.get('X-CSRF-Token') or (request.get_json(silent=True) or {}).get('_csrf_token')
             session_token = session.get('_csrf_token')
             if not session_token or not token or not secrets.compare_digest(session_token, token):
                 return api_error('CSRF token missing or invalid. Please refresh the page.', 403)
         return f(*args, **kwargs)
     return decorated
+
+
+# ══════════════════════════════════════════════════════════════
+# MODEL TRAINING APIS
+# ══════════════════════════════════════════════════════════════
+
+@api_bp.route('/api/admin/train/<symbol>', methods=['POST'])
+@login_required
+@csrf_protect
+def api_train_model(symbol):
+    """Trigger LightGBM model training for a symbol"""
+    if symbol not in INDIAN_MARKET_CONFIG and symbol not in INDIAN_STOCKS_CONFIG:
+        return api_error('Invalid symbol for model training', 400)
+        
+    try:
+        from backend.data.historical_data_manager import train_model
+        result = train_model(symbol)
+        
+        if 'error' in result:
+            return api_error(result['error'], 500)
+            
+        return api_success(data=result, message=f"Successfully trained LightGBM model for {symbol}")
+    except Exception as e:
+        return api_error(str(e), 500)
+
+@api_bp.route('/api/admin/models/status', methods=['GET'])
+@login_required
+def api_models_status():
+    """Check the status of trained models on disk"""
+    import joblib
+    from pathlib import Path
+    
+    status = {}
+    symbols = ['NIFTY_50', 'BANK_NIFTY', 'SENSEX']
+    
+    for symbol in symbols:
+        model_path = Path("data/models") / f"{symbol}_lightgbm.pkl"
+        if model_path.exists():
+            try:
+                saved_data = joblib.load(str(model_path))
+                metadata = saved_data['metadata']
+                status[symbol] = {
+                    'trained': True,
+                    'accuracy': metadata.get('accuracy'),
+                    'precision': metadata.get('precision'),
+                    'recall': metadata.get('recall'),
+                    'f1_score': metadata.get('f1_score'),
+                    'trained_at': metadata.get('trained_at'),
+                    'data_points': metadata.get('data_points')
+                }
+            except Exception as e:
+                status[symbol] = {
+                    'trained': True,
+                    'error': f"Failed to load: {str(e)}"
+                }
+        else:
+            status[symbol] = {
+                'trained': False
+            }
+            
+    return api_success(data=status)
+
+
+# ══════════════════════════════════════════════════════════════
+# BROKER APIS
+# ══════════════════════════════════════════════════════════════
+
+@api_bp.route('/api/execute-trade', methods=['POST'])
+@login_required
+@csrf_protect
+def api_execute_trade():
+    """Execute a live or paper trade using the BrokerAgent"""
+    try:
+        data = request.get_json() or {}
+        symbol = data.get('symbol')
+        side = data.get('side')
+        quantity = int(data.get('quantity', 1))
+        price = float(data.get('price', 0.0))
+        product_type = data.get('product_type', 'INTRADAY')
+        
+        if not symbol or not side:
+            return api_error('Symbol and side are required', 400)
+            
+        # Import broker agent here to avoid circular dependencies
+        try:
+            from backend.agents.broker_agent import broker_agent
+            result = broker_agent.place_order(
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                product_type=product_type,
+                price=price
+            )
+            
+            if result.get('success'):
+                return api_success(data=result, message=result.get('message'))
+            else:
+                return api_error(result.get('message', 'Trade failed'), 400)
+                
+        except Exception as e:
+            return api_error(f"Broker agent error: {str(e)}", 500)
+            
+    except Exception as e:
+        return api_error(str(e), 500)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -235,7 +366,7 @@ def get_technical_analysis(symbol):
     """Get comprehensive technical analysis for a symbol"""
     try:
         # Validate symbol
-        if symbol not in ['NIFTY_50', 'BANK_NIFTY', 'SENSEX']:
+        if symbol not in INDIAN_MARKET_CONFIG and symbol not in INDIAN_STOCKS_CONFIG:
             return jsonify({'error': 'Invalid symbol'}), 400
         
         # Calculate technical indicators
@@ -396,7 +527,7 @@ def _to_latest_format(symbol, data):
 
 def _get_market_data_dict():
     """Get market data as dict - used by both API and server-side render. Never fails."""
-    symbols = ['NIFTY_50', 'BANK_NIFTY', 'SENSEX']
+    symbols = list(INDIAN_MARKET_CONFIG.keys())
     latest_data = {}
     for symbol in symbols:
         try:
@@ -573,6 +704,45 @@ def get_chart_data(symbol):
     """Legacy chart endpoint — redirects to 1-day candle data"""
     return get_candle_data(symbol, '1day')
 
+# ══════════════════════════════════════════════════════════════
+# MUTUAL FUNDS ENDPOINTS
+# ══════════════════════════════════════════════════════════════
+
+@api_bp.route('/api/mf/list')
+def get_mf_list():
+    """Get list of top Indian mutual funds with NAV and AI signals"""
+    try:
+        cat_filter = request.args.get('category', None)
+        funds = get_all_mutual_funds(cat_filter)
+        return jsonify({'success': True, 'data': funds})
+    except Exception as e:
+        logger.error(f"Error fetching mutual funds list: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/api/mf/detail/<symbol>')
+def get_mf_detail_route(symbol):
+    """Get detailed analysis and historical NAV for a specific mutual fund"""
+    try:
+        detail = get_mutual_fund_detail(symbol.upper())
+        if not detail:
+            return jsonify({'success': False, 'error': 'Fund not found'}), 404
+        return jsonify({'success': True, 'data': detail})
+    except Exception as e:
+        logger.error(f"Error fetching mutual fund detail for {symbol}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/api/mf/predict/<symbol>')
+def predict_mf_route(symbol):
+    """Get AI Smart SIP target predictions for a mutual fund"""
+    try:
+        prediction = predict_mutual_fund_nav(symbol.upper())
+        if not prediction:
+            return jsonify({'success': False, 'error': 'Fund not found'}), 404
+        return jsonify({'success': True, 'data': prediction})
+    except Exception as e:
+        logger.error(f"Error fetching mutual fund prediction for {symbol}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.route('/api/candle-data/<symbol>/<timeframe>')
 def get_candle_data(symbol, timeframe):
     """Get OHLC candlestick data for a symbol and timeframe"""
@@ -599,7 +769,7 @@ def get_ai_analysis_options():
         # if not session.get('can_analyze', True):
         #     return jsonify({'error': 'AI analysis is not available at this time'}), 403
         
-        symbols = ['NIFTY_50', 'BANK_NIFTY', 'SENSEX']
+        symbols = list(INDIAN_MARKET_CONFIG.keys()) + list(INDIAN_STOCKS_CONFIG.keys())
         options_data = {}
         
         for symbol in symbols:
@@ -641,6 +811,57 @@ def get_ai_analysis_options():
         logger.error(f"Error in AI analysis options: {e}")
         return jsonify({'error': str(e)}), 500
 
+def clean_recommendations_for_stocks(symbol, data):
+    """Helper to convert options terminology (BUY CALL, BUY PUT) to stock terminology (BUY, SELL) for stocks"""
+    # Keep options terminology for indices
+    if symbol in INDIAN_MARKET_CONFIG:
+        return data
+        
+    def replace_val(val):
+        if not isinstance(val, str):
+            return val
+        val_upper = val.upper()
+        if val_upper == 'BUY CALL': return 'BUY'
+        if val_upper == 'BUY PUT': return 'SELL'
+        if val_upper == 'CALL': return 'BUY'
+        if val_upper == 'PUT': return 'SELL'
+        return val
+
+    if not isinstance(data, dict):
+        return data
+        
+    # Translate top-level recommendation
+    if 'recommendation' in data:
+        data['recommendation'] = replace_val(data['recommendation'])
+        
+    # Translate predictions
+    if 'predictions' in data and isinstance(data['predictions'], dict):
+        p = data['predictions']
+        if 'recommendation' in p:
+            p['recommendation'] = replace_val(p['recommendation'])
+        if 'option_side' in p:
+            p['option_side'] = replace_val(p['option_side'])
+            
+    # Translate ai_trading_suggestion
+    if 'ai_trading_suggestion' in data and isinstance(data['ai_trading_suggestion'], dict):
+        ai = data['ai_trading_suggestion']
+        if 'suggestion' in ai:
+            ai['suggestion'] = replace_val(ai['suggestion'])
+        if 'option_side' in ai:
+            ai['option_side'] = replace_val(ai['option_side'])
+            
+    # Translate strategy_analysis
+    if 'strategy_analysis' in data and isinstance(data['strategy_analysis'], dict):
+        sa = data['strategy_analysis']
+        if 'recommendation' in sa and isinstance(sa['recommendation'], dict):
+            sr = sa['recommendation']
+            if 'recommendation' in sr:
+                sr['recommendation'] = replace_val(sr['recommendation'])
+            if 'option_side' in sr:
+                sr['option_side'] = replace_val(sr['option_side'])
+                
+    return data
+
 @api_bp.route('/api/ai-analysis-fast/<symbol>')
 def get_symbol_ai_analysis_fast(symbol):
     """Get fast AI analysis without RAG for instant responses - 24/7 ACCESS"""
@@ -649,7 +870,7 @@ def get_symbol_ai_analysis_fast(symbol):
         logger.info(f"Fast AI analysis requested for {symbol} (24/7 access enabled)")
         
         # Validate symbol
-        if symbol not in ['NIFTY_50', 'BANK_NIFTY', 'SENSEX']:
+        if symbol not in INDIAN_MARKET_CONFIG and symbol not in INDIAN_STOCKS_CONFIG:
             return jsonify({'error': 'Invalid symbol'}), 400
         
         # Get current market data
@@ -660,22 +881,41 @@ def get_symbol_ai_analysis_fast(symbol):
         
         logger.info(f"Fast AI analysis for {symbol} (no RAG)...")
         
-        # Get minimal technical indicators only (fast)
-        technical_indicators = calculate_fast_technical_indicators(symbol, current_data)
+        # Fetch latest news first (mentor requirement: use news to explain price changes)
+        try:
+            news_data = fetch_news_and_sentiment(symbol)
+        except Exception as news_err:
+            logger.warning(f"News fetch failed for {symbol}: {news_err}")
+            news_data = {'articles': [], 'news_sentiment_score': 0.0, 'news_sentiment_label': 'Neutral'}
+
+        # Fetch historical data ONCE for both technical indicators and predictions (max 3.5s timeout)
+        historical_data = None
+        try:
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+            with ThreadPoolExecutor(max_workers=1) as _pool:
+                _fut = _pool.submit(get_day_by_day_historical_data, symbol, 20)
+                try:
+                    historical_data = _fut.result(timeout=3.5)
+                except FuturesTimeout:
+                    logger.warning(f"Historical data fetch timed out in fast mode for {symbol}")
+                    historical_data = None
+        except Exception as hist_err:
+            logger.warning(f"Historical data fetch failed for {symbol}: {hist_err}")
+            historical_data = None
+
+        # Get minimal technical indicators using pre-fetched historical data
+        technical_indicators = calculate_fast_technical_indicators(symbol, current_data, historical_data=historical_data)
         
-        # Generate quick AI suggestion without RAG
-        ai_suggestion = generate_fast_ai_suggestion(symbol, current_data, technical_indicators)
+        # Generate quick AI suggestion without RAG (passing news_data)
+        ai_suggestion = generate_fast_ai_suggestion(symbol, current_data, technical_indicators, news_data)
         
-        # Generate lightweight predictions for fast mode
-        prediction_data = generate_fast_predictions(symbol, current_data, technical_indicators)
-        
-        # Skip news in fast mode to avoid external API latency on cold starts
-        news_data = {'articles': [], 'news_sentiment_score': 0.0, 'news_sentiment_label': 'Neutral'}
+        # Generate lightweight predictions using pre-fetched historical data
+        prediction_data = generate_fast_predictions(symbol, current_data, technical_indicators, historical_data=historical_data)
         
         # Create fast analysis response
         fast_analysis = {
             'symbol': symbol,
-            'display_name': symbol.replace('_', ' '),
+            'display_name': INDIAN_STOCKS_CONFIG.get(symbol, INDIAN_MARKET_CONFIG.get(symbol, {})).get('display_name', symbol.replace('_', ' ')),
             'analysis_timestamp': datetime.now().isoformat(),
             'market_data': current_data,
             'technical_indicators': technical_indicators,
@@ -690,48 +930,156 @@ def get_symbol_ai_analysis_fast(symbol):
         }
         
         logger.info(f"Fast AI analysis completed for {symbol}")
-        return jsonify(fast_analysis)
+        return jsonify(clean_recommendations_for_stocks(symbol, fast_analysis))
         
     except Exception as e:
         logger.error(f"Error in fast AI analysis for {symbol}: {e}")
-        return jsonify({'error': 'Analysis failed. Please try again.'}), 500
+        try:
+            current_data = get_current_market_data(symbol) or generate_simulated_market_data(symbol)
+            fallback = generate_fallback_analysis(symbol, current_data)
+            return jsonify(clean_recommendations_for_stocks(symbol, fallback))
+        except Exception:
+            return jsonify({'error': 'Analysis failed. Please try again.'}), 500
 
-def generate_fast_ai_suggestion(symbol, market_data, technical_indicators):
-    """Generate fast AI suggestion without RAG"""
+def generate_fast_ai_suggestion(symbol, market_data, technical_indicators, news_data=None):
+    """Generate fast AI suggestion without RAG, explaining why price is low/high based on news and indicators"""
     try:
         # Quick logic based on technical indicators
         rsi = technical_indicators.get('rsi', 50)
         trend = technical_indicators.get('market_trend', 'Neutral')
         change = market_data.get('change', 0)
+        change_pct = market_data.get('change_percent', 0)
         volatility = technical_indicators.get('volatility_percent', 1)
+        support = technical_indicators.get('support_level', 0)
+        resistance = technical_indicators.get('resistance_level', 0)
+        price = market_data.get('price', 0)
+        display_name = market_data.get('name', symbol.replace('_', ' '))
         
-        # Simple decision logic
+        # Analyze news articles to find catalysts
+        bullish_news = []
+        bearish_news = []
+        if news_data and 'articles' in news_data:
+            for art in news_data['articles']:
+                if art.get('label') == 'Bullish' or art.get('polarity', 0) > 0.05:
+                    bullish_news.append(art.get('title'))
+                elif art.get('label') == 'Bearish' or art.get('polarity', 0) < -0.05:
+                    bearish_news.append(art.get('title'))
+        
+        # Build explanation for why price is high or low
+        price_reasons = []
+        if change_pct <= -0.5:
+            # Price is low/dropping - explain why
+            price_reasons.append(f"Price is down ({change_pct:+.1f}%) today due to selling pressure.")
+            if bearish_news:
+                # Truncate title to fit nicely
+                clean_title = bearish_news[0][:60] + "..." if len(bearish_news[0]) > 60 else bearish_news[0]
+                price_reasons.append(f"Bearish updates like '{clean_title}' are dampening investor confidence.")
+            elif bullish_news:
+                price_reasons.append("Despite recent positive headlines, technical selling is overriding short-term news.")
+            else:
+                price_reasons.append("Broader sectoral weakness and lack of positive catalysts are dragging the stock lower.")
+                
+            if rsi < 35:
+                price_reasons.append(f"Technical indicators confirm oversold conditions (RSI: {rsi:.1f}), signaling heavy distribution.")
+            else:
+                price_reasons.append(f"Momentum remains weak as price trades below the key resistance zone of Rs.{resistance:.0f}.")
+        elif change_pct >= 0.5:
+            # Price is high/rising - explain why
+            price_reasons.append(f"Price is up ({change_pct:+.1f}%) today due to buying momentum.")
+            if bullish_news:
+                clean_title = bullish_news[0][:60] + "..." if len(bullish_news[0]) > 60 else bullish_news[0]
+                price_reasons.append(f"Bullish catalysts like '{clean_title}' are boosting trader sentiment.")
+            elif bearish_news:
+                price_reasons.append("Strong technical buying is overriding recent negative news alerts.")
+            else:
+                price_reasons.append("Institutional inflows and positive sectoral momentum are pushing the price higher.")
+                
+            if rsi > 65:
+                price_reasons.append(f"Technical indicators highlight strong overbought momentum (RSI: {rsi:.1f}), showing high retail demand.")
+            else:
+                price_reasons.append(f"Uptrend is supported as the stock trades comfortably above key support at Rs.{support:.0f}.")
+        else:
+            # Price is consolidating
+            price_reasons.append(f"Price is trading flat ({change_pct:+.1f}%) in a narrow range today.")
+            price_reasons.append("The stock is currently consolidating as market participants await fresh triggers or earnings updates.")
+            if bullish_news or bearish_news:
+                price_reasons.append("Mixed news alerts have kept trading volumes steady without a clear breakout.")
+            else:
+                price_reasons.append("Trading volumes are light, indicating a temporary wait-and-watch phase in the market.")
+
+        # Simple decision logic for recommendations
         if rsi < 30 and change < 0:
             suggestion = 'BUY CALL'
             confidence = 0.75
-            reasoning = ['RSI oversold', 'Market dipped', 'Potential reversal']
+            reasoning = [
+                f'{display_name} RSI at {rsi:.1f} indicates oversold conditions - a bounce-back rally is likely',
+                price_reasons[0],
+                price_reasons[1] if len(price_reasons) > 1 else 'Mean reversion potential is high',
+                f'Support zone near Rs.{support:.0f} is holding, reducing downside risk'
+            ]
+            hold_explanation = ''
         elif rsi > 70 and change > 0:
             suggestion = 'BUY PUT'
             confidence = 0.75
-            reasoning = ['RSI overbought', 'Market peaked', 'Potential correction']
+            reasoning = [
+                f'{display_name} RSI at {rsi:.1f} signals overbought territory - correction risk is elevated',
+                price_reasons[0],
+                price_reasons[1] if len(price_reasons) > 1 else 'Correction potential is high',
+                f'Price near resistance Rs.{resistance:.0f} could trigger a pullback'
+            ]
+            hold_explanation = ''
         elif trend == 'Bullish':
             suggestion = 'BUY CALL'
             confidence = 0.65
-            reasoning = ['Uptrend confirmed', 'Momentum positive', 'Follow trend']
+            reasoning = [
+                f'{display_name} is in a confirmed uptrend with positive momentum',
+                price_reasons[0],
+                price_reasons[1] if len(price_reasons) > 1 else 'Trend strength is strong',
+                f'Price is trending above key support at Rs.{support:.0f}'
+            ]
+            hold_explanation = ''
         elif trend == 'Bearish':
             suggestion = 'BUY PUT'
             confidence = 0.65
-            reasoning = ['Downtrend confirmed', 'Momentum negative', 'Follow trend']
+            reasoning = [
+                f'{display_name} is in a confirmed downtrend with negative momentum',
+                price_reasons[0],
+                price_reasons[1] if len(price_reasons) > 1 else 'Downtrend strength is strong',
+                f'Price is trending below resistance at Rs.{resistance:.0f}'
+            ]
+            hold_explanation = ''
         else:
             suggestion = 'HOLD'
             confidence = 0.5
-            reasoning = ['Neutral trend', 'Wait for clarity', 'Market uncertain']
+            
+            # Build detailed HOLD reasoning based on actual market conditions and news
+            hold_reasons = []
+            
+            # Include price driver first
+            hold_reasons.extend(price_reasons[:2])
+            
+            if 40 <= rsi <= 60:
+                hold_reasons.append(f'RSI at {rsi:.1f} is in the neutral zone - no clear overbought or oversold signal to act on')
+            elif 30 <= rsi < 40:
+                hold_reasons.append(f'RSI at {rsi:.1f} is approaching oversold but has not confirmed yet')
+            
+            if support > 0 and resistance > 0 and price > 0:
+                pos_in_range = ((price - support) / (resistance - support)) * 100 if resistance != support else 50
+                if 30 < pos_in_range < 70:
+                    hold_reasons.append(f'Price is in the middle of its range (Rs.{support:.0f} - Rs.{resistance:.0f}) - no trading edge')
+            
+            hold_reasons.append('Recommendation: Hold existing positions and wait for a clear breakout before trading')
+            
+            reasoning = hold_reasons[:4]
+            hold_explanation = ' | '.join(hold_reasons)
         
         return {
             'suggestion': suggestion,
             'option_side': suggestion.split()[-1] if ' ' in suggestion else suggestion,
             'confidence': confidence,
             'reasoning': reasoning,
+            'hold_explanation': hold_explanation if suggestion == 'HOLD' else '',
+            'price_drivers': price_reasons,
             'risk_adjusted': True,
             'fast_mode': True
         }
@@ -742,10 +1090,13 @@ def generate_fast_ai_suggestion(symbol, market_data, technical_indicators):
             'suggestion': 'HOLD',
             'option_side': 'HOLD',
             'confidence': 0.5,
-            'reasoning': ['Analysis error', 'Conservative approach'],
+            'reasoning': ['Analysis error - using conservative approach', 'Insufficient data to generate a confident signal', 'Hold current positions until data improves'],
+            'hold_explanation': 'Unable to generate a confident trading signal due to data limitations.',
+            'price_drivers': ['Price driver analysis failed due to system error.'],
             'risk_adjusted': True,
             'fast_mode': True
         }
+
 @api_bp.route('/api/ai-analysis/<symbol>')
 def get_symbol_ai_analysis(symbol):
     """Get detailed AI analysis for a specific symbol using agent architecture - 24/7 ACCESS"""
@@ -758,7 +1109,7 @@ def get_symbol_ai_analysis(symbol):
         #     return jsonify({'error': 'AI analysis is not available at this time'}), 403
         
         # Validate symbol
-        if symbol not in ['NIFTY_50', 'BANK_NIFTY', 'SENSEX']:
+        if symbol not in INDIAN_MARKET_CONFIG and symbol not in INDIAN_STOCKS_CONFIG:
             return jsonify({'error': 'Invalid symbol'}), 400
         
         # Get current market data
@@ -785,7 +1136,7 @@ def get_symbol_ai_analysis(symbol):
                 
                 if 'error' not in analysis_result:
                     logger.info(f"AI agents completed analysis for {symbol}")
-                    return jsonify(analysis_result)
+                    return jsonify(clean_recommendations_for_stocks(symbol, analysis_result))
                 else:
                     logger.warning(f"AI agents failed for {symbol}, error: {analysis_result.get('error', 'Unknown')}")
                     
@@ -856,7 +1207,7 @@ def get_symbol_ai_analysis(symbol):
                     'news_analysis': news_data
                 }
                 logger.info(f"RAG-enhanced analysis completed for {symbol}")
-                return jsonify(analysis_result)
+                return jsonify(clean_recommendations_for_stocks(symbol, analysis_result))
             else:
                 logger.warning(f"RAG retrieval failed for {symbol}")
         
@@ -868,21 +1219,38 @@ def get_symbol_ai_analysis(symbol):
         analysis_result['technical_indicators'] = calculate_technical_indicators(symbol)
         analysis_result['news_analysis'] = news_data
         
-        return jsonify(analysis_result)
+        return jsonify(clean_recommendations_for_stocks(symbol, analysis_result))
         
     except Exception as e:
         logger.error(f"Error in symbol AI analysis: {e}")
-        return jsonify({'error': str(e)}), 500
+        try:
+            current_data = get_current_market_data(symbol) or generate_simulated_market_data(symbol)
+            fallback = generate_fallback_analysis(symbol, current_data)
+            return jsonify(clean_recommendations_for_stocks(symbol, fallback))
+        except Exception:
+            return jsonify({'error': str(e)}), 500
 
-def calculate_fast_technical_indicators(symbol: str, current_data: Dict[str, Any]) -> Dict[str, Any]:
+def calculate_fast_technical_indicators(symbol: str, current_data: Dict[str, Any], historical_data: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Calculate technical indicators using real historical data when available"""
     try:
         current_price = current_data.get('price', 0)
         change_percent = current_data.get('change_percent', 0)
         
-        # Try to get real historical data for proper indicator calculation
-        historical_data = get_day_by_day_historical_data(symbol, days=20)
-        
+        # Try to get real historical data for proper indicator calculation — with timeout if not provided
+        if historical_data is None:
+            try:
+                from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+                with ThreadPoolExecutor(max_workers=1) as _pool:
+                    _fut = _pool.submit(get_day_by_day_historical_data, symbol, 20)
+                    try:
+                        historical_data = _fut.result(timeout=4)
+                    except FuturesTimeout:
+                        logger.warning(f"Historical data timed out for {symbol} – using approximate indicators")
+                        historical_data = None
+            except Exception as _he:
+                logger.warning(f"Historical data fetch error for {symbol}: {_he}")
+                historical_data = None
+
         if historical_data and len(historical_data) >= 5:
             # We have real data - compute real indicators
             hist_slice = list(reversed(historical_data))  # oldest first
@@ -946,6 +1314,15 @@ def calculate_fast_technical_indicators(symbol: str, current_data: Dict[str, Any
                 market_trend = 'Neutral'
                 trend = 0
             
+            # Support and Resistance from recent highs/lows
+            recent_lows = sorted(lows[-10:])
+            recent_highs = sorted(highs[-10:], reverse=True)
+            support_level = round(sum(recent_lows[:3]) / min(3, len(recent_lows)), 2) if recent_lows else current_price * 0.97
+            resistance_level = round(sum(recent_highs[:3]) / min(3, len(recent_highs)), 2) if recent_highs else current_price * 1.03
+            
+            # Sentiment score from momentum and RSI
+            sentiment_score = round((momentum_5d / 5) + ((rsi - 50) / 100), 2)
+            
             return {
                 'rsi': round(rsi, 2),
                 'macd': round(macd, 2),
@@ -954,6 +1331,9 @@ def calculate_fast_technical_indicators(symbol: str, current_data: Dict[str, Any
                 'market_trend': market_trend,
                 'price': current_price,
                 'change_percent': change_percent,
+                'support_level': support_level,
+                'resistance_level': resistance_level,
+                'sentiment_score': sentiment_score,
                 'data_quality': 'real',
                 'data_points': len(closing_prices)
             }
@@ -1003,7 +1383,7 @@ def calculate_fast_technical_indicators(symbol: str, current_data: Dict[str, Any
         }
 
 
-def generate_fast_predictions(symbol: str, current_data: Dict[str, Any], technical_indicators: Dict[str, Any]) -> Dict[str, Any]:
+def generate_fast_predictions(symbol: str, current_data: Dict[str, Any], technical_indicators: Dict[str, Any], historical_data: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Generate predictions using real technical analysis data"""
     try:
         current_price = current_data.get('price', 0)
@@ -1013,8 +1393,9 @@ def generate_fast_predictions(symbol: str, current_data: Dict[str, Any], technic
         volatility = technical_indicators.get('volatility_percent', 1.0)
         data_quality = technical_indicators.get('data_quality', 'approximate')
         
-        # Try to get historical data for win-rate analysis
-        historical_data = get_day_by_day_historical_data(symbol, days=10)
+        # Try to get historical data for win-rate analysis if not provided
+        if historical_data is None:
+            historical_data = get_day_by_day_historical_data(symbol, days=10)
         
         if historical_data and len(historical_data) >= 3:
             hist_slice = list(reversed(historical_data))  # oldest first
@@ -2124,10 +2505,10 @@ def get_options_chain(symbol):
     try:
         symbol = symbol.upper().strip()
 
-        # Only NIFTY_50 and BANK_NIFTY support F&O
-        if symbol not in ('NIFTY_50', 'BANK_NIFTY'):
+        # Only F&O supported symbols
+        if symbol not in FNO_SUPPORTED_SYMBOLS:
             return jsonify({
-                'error': f'Options chain not available for {symbol}. Only NIFTY_50 and BANK_NIFTY are supported.'
+                'error': f'Options chain not available for {symbol}. Supported symbols: {", ".join(FNO_SUPPORTED_SYMBOLS)}.'
             }), 400
 
         result = get_option_chain(symbol)
@@ -2149,10 +2530,10 @@ def get_options_chain_by_expiry(symbol, expiry):
     try:
         symbol = symbol.upper().strip()
 
-        # Only NIFTY_50 and BANK_NIFTY support F&O
-        if symbol not in ('NIFTY_50', 'BANK_NIFTY'):
+        # Only F&O supported symbols
+        if symbol not in FNO_SUPPORTED_SYMBOLS:
             return jsonify({
-                'error': f'Options chain not available for {symbol}. Only NIFTY_50 and BANK_NIFTY are supported.'
+                'error': f'Options chain not available for {symbol}. Supported symbols: {", ".join(FNO_SUPPORTED_SYMBOLS)}.'
             }), 400
 
         # Validate expiry date format (YYYY-MM-DD)
@@ -2216,3 +2597,34 @@ Sitemap: {base_url}/sitemap.xml
 """
     return Response(txt, mimetype='text/plain')
 
+
+@api_bp.route('/api/initial-data', methods=['GET'])
+def get_initial_data():
+    """Returns data previously server-rendered via Jinja2 for the frontend."""
+    from market_engine import INDIAN_MARKET_CONFIG, INDIAN_STOCKS_CONFIG, get_market_session, INDIAN_TIMEZONE
+    from datetime import datetime
+    try:
+        # Get market data for major indices
+        market_data = {}
+        for key in ['NIFTY_50', 'BANK_NIFTY', 'SENSEX']:
+            try:
+                from market_engine import get_current_market_data, generate_simulated_market_data
+                data = get_current_market_data(key)
+                market_data[key] = data if data else generate_simulated_market_data(key)
+            except Exception:
+                from market_engine import generate_simulated_market_data
+                market_data[key] = generate_simulated_market_data(key)
+        
+        session_data = get_market_session()
+        status = 'Market Open' if session_data.get('status') == 'open' else 'Market Closed'
+        now = datetime.now(INDIAN_TIMEZONE)
+        
+        return jsonify({
+            'success': True,
+            'market_data': market_data,
+            'stocks_config': INDIAN_STOCKS_CONFIG,
+            'market_status': status,
+            'time': now.strftime('%I:%M %p')
+        })
+    except Exception as e:
+        return jsonify({'success': True, 'market_data': {}, 'stocks_config': {}, 'market_status': 'Market Closed', 'time': ''})

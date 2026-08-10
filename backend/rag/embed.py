@@ -1,13 +1,13 @@
 """
 Document Embedding Module for AI Trader RAG System
-Uses LangChain and sentence-transformers to create embeddings from trading strategy documents
+Uses LangChain and Google Gemini to create embeddings from trading strategy documents
 """
 
 import os
 import json
 from typing import List
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
 import logging
@@ -35,16 +35,16 @@ class TradingDocumentEmbedder:
         )
         self.vector_store = None
         
-    def _initialize_embeddings(self) -> HuggingFaceEmbeddings:
-        """Initialize HuggingFace embeddings model"""
+    def _initialize_embeddings(self) -> GoogleGenerativeAIEmbeddings:
+        """Initialize Google Gemini embeddings model"""
         try:
-            # Using a lightweight but effective model for trading documents
-            embeddings = HuggingFaceEmbeddings(
-                model_name="sentence-transformers/all-MiniLM-L6-v2",
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
+            # Using Google Gemini embedding model
+            api_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+            embeddings = GoogleGenerativeAIEmbeddings(
+                model="models/embedding-001",
+                google_api_key=api_key
             )
-            logger.info("Successfully initialized HuggingFace embeddings")
+            logger.info("Successfully initialized Google Gemini embeddings")
             return embeddings
         except Exception as e:
             logger.error(f"Failed to initialize embeddings: {e}")

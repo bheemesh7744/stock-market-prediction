@@ -57,3 +57,6 @@ logs/
 *.bak
 *.tmp
 *.cache
+
+.vercel
+.env*

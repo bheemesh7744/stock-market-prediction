@@ -6,6 +6,11 @@ Day-by-day market closed values and neat time formatting
 
 import sys
 import os
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 import time
 import json
 import random
@@ -15,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Set
 import pytz
 from flask import Flask, jsonify, request, Response, session
+from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import logging
 import yfinance as yf
@@ -47,8 +53,15 @@ RATE_LIMIT_REQUESTS = 60        # Max requests per window
 RATE_LIMIT_WINDOW = 60          # Window size in seconds
 
 # Valid symbols whitelist (security: input validation)
-VALID_INDEX_SYMBOLS: Set[str] = {'NIFTY_50', 'BANK_NIFTY', 'SENSEX'}
+VALID_INDEX_SYMBOLS: Set[str] = {
+    'NIFTY_50', 'SENSEX', 'NIFTY_NEXT_50', 'NIFTY_MIDCAP_50', 'NIFTY_500',
+    'BANK_NIFTY', 'NIFTY_IT', 'NIFTY_PHARMA', 'NIFTY_AUTO', 'NIFTY_FMCG',
+    'NIFTY_METAL', 'NIFTY_REALTY', 'NIFTY_ENERGY', 'NIFTY_PSU_BANK',
+    'FINNIFTY', 'MIDCPNIFTY', 'INDIA_VIX',
+    'S_AND_P_500', 'NASDAQ', 'DOW_JONES'
+}
 VALID_TIMEFRAMES: Set[str] = {'5min', '1hr', '1day', '1yr', '3yr', '5yr', 'lifetime'}
+
 
 
 # ══════════════════════════════════════════════════════════════
@@ -223,12 +236,17 @@ app.permanent_session_lifetime = timedelta(days=30)
 _ALLOWED_ORIGINS = [
     'http://localhost:5008', 'http://127.0.0.1:5008',
     'http://localhost:5009', 'http://127.0.0.1:5009',
+    'http://localhost:3000', 'http://127.0.0.1:3000',
     f"http://localhost:{os.environ.get('PORT', '5008')}",
     'https://agentic-ai-trader-y0xc.onrender.com',
+    'https://stock-market-prediction-green.vercel.app',
 ]
-# On Render, allow all origins so the deployed domain always works
-if os.environ.get('RENDER'):
-    _ALLOWED_ORIGINS = '*'
+# Add Vercel frontend URL from environment
+_frontend_url = os.environ.get('FRONTEND_URL', '')
+if _frontend_url and _frontend_url not in _ALLOWED_ORIGINS:
+    _ALLOWED_ORIGINS.append(_frontend_url)
+
+CORS(app, origins=_ALLOWED_ORIGINS, supports_credentials=True, allow_headers=['Content-Type', 'Authorization', 'X-CSRF-Token'], methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 # Auto-detect async mode: use 'eventlet' on Render (matching gunicorn --worker-class eventlet),
 # fall back to 'threading' for local development
 _async_mode = 'eventlet' if os.environ.get('RENDER') else 'threading'
@@ -245,23 +263,149 @@ PRE_MARKET_ANALYSIS_TIME = datetime.strptime("08:45", "%H:%M").time()
 
 # Indian Market Symbols - Clean configuration
 INDIAN_MARKET_CONFIG = {
+    # Benchmark Indices
     'NIFTY_50': {
         'symbol': '^NSEI',
         'name': 'NIFTY 50',
         'display_name': 'NIFTY 50',
-        'exchange': 'NSE'
-    },
-    'BANK_NIFTY': {
-        'symbol': '^NSEBANK',
-        'name': 'BANK NIFTY',
-        'display_name': 'BANK NIFTY',
-        'exchange': 'NSE'
+        'exchange': 'NSE',
+        'category': 'Benchmark'
     },
     'SENSEX': {
         'symbol': '^BSESN',
         'name': 'SENSEX',
         'display_name': 'SENSEX',
-        'exchange': 'BSE'
+        'exchange': 'BSE',
+        'category': 'Benchmark'
+    },
+    'NIFTY_NEXT_50': {
+        'symbol': '^NSMIDCP',
+        'name': 'NIFTY NEXT 50',
+        'display_name': 'NIFTY Next 50',
+        'exchange': 'NSE',
+        'category': 'Benchmark'
+    },
+    'NIFTY_MIDCAP_50': {
+        'symbol': '^NSEMDCP50',
+        'name': 'NIFTY MIDCAP 50',
+        'display_name': 'NIFTY Midcap 50',
+        'exchange': 'NSE',
+        'category': 'Benchmark'
+    },
+    'NIFTY_500': {
+        'symbol': '^CRSLDX',
+        'name': 'NIFTY 500',
+        'display_name': 'NIFTY 500',
+        'exchange': 'NSE',
+        'category': 'Benchmark'
+    },
+    # Sectoral Indices
+    'BANK_NIFTY': {
+        'symbol': '^NSEBANK',
+        'name': 'BANK NIFTY',
+        'display_name': 'BANK NIFTY',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_IT': {
+        'symbol': '^CNXIT',
+        'name': 'NIFTY IT',
+        'display_name': 'NIFTY IT',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_PHARMA': {
+        'symbol': '^CNXPHARMA',
+        'name': 'NIFTY PHARMA',
+        'display_name': 'NIFTY Pharma',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_AUTO': {
+        'symbol': '^CNXAUTO',
+        'name': 'NIFTY AUTO',
+        'display_name': 'NIFTY Auto',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_FMCG': {
+        'symbol': '^CNXFMCG',
+        'name': 'NIFTY FMCG',
+        'display_name': 'NIFTY FMCG',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_METAL': {
+        'symbol': '^CNXMETAL',
+        'name': 'NIFTY METAL',
+        'display_name': 'NIFTY Metal',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_REALTY': {
+        'symbol': '^CNXREALTY',
+        'name': 'NIFTY REALTY',
+        'display_name': 'NIFTY Realty',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_ENERGY': {
+        'symbol': '^CNXENERGY',
+        'name': 'NIFTY ENERGY',
+        'display_name': 'NIFTY Energy',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    'NIFTY_PSU_BANK': {
+        'symbol': '^CNXPSUBANK',
+        'name': 'NIFTY PSU BANK',
+        'display_name': 'NIFTY PSU Bank',
+        'exchange': 'NSE',
+        'category': 'Sectoral'
+    },
+    # Financial Derivatives & Volatility
+    'FINNIFTY': {
+        'symbol': 'NIFTY_FIN_SERVICE.NS',
+        'name': 'FINNIFTY',
+        'display_name': 'FINNIFTY',
+        'exchange': 'NSE',
+        'category': 'Derivatives'
+    },
+    'MIDCPNIFTY': {
+        'symbol': 'NIFTY_MID_SELECT.NS',
+        'name': 'MIDCPNIFTY',
+        'display_name': 'MIDCPNIFTY',
+        'exchange': 'NSE',
+        'category': 'Derivatives'
+    },
+    'INDIA_VIX': {
+        'symbol': '^INDIAVIX',
+        'name': 'INDIA VIX',
+        'display_name': 'India VIX',
+        'exchange': 'NSE',
+        'category': 'Derivatives'
+    },
+    # Global Indices
+    'S_AND_P_500': {
+        'symbol': '^GSPC',
+        'name': 'S&P 500',
+        'display_name': 'S&P 500',
+        'exchange': 'US',
+        'category': 'Global'
+    },
+    'NASDAQ': {
+        'symbol': '^IXIC',
+        'name': 'NASDAQ',
+        'display_name': 'NASDAQ Composite',
+        'exchange': 'US',
+        'category': 'Global'
+    },
+    'DOW_JONES': {
+        'symbol': '^DJI',
+        'name': 'DOW JONES',
+        'display_name': 'Dow Jones',
+        'exchange': 'US',
+        'category': 'Global'
     }
 }
 
@@ -1383,8 +1527,25 @@ def generate_simulated_market_data(symbol):
     config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol) or INDIAN_MARKET_CONFIG['NIFTY_50']
     base_prices = {
         'NIFTY_50': 24200,
-        'BANK_NIFTY': 57950,
         'SENSEX': 77530,
+        'NIFTY_NEXT_50': 71500,
+        'NIFTY_MIDCAP_50': 17500,
+        'NIFTY_500': 22700,
+        'BANK_NIFTY': 56000,
+        'NIFTY_IT': 28500,
+        'NIFTY_PHARMA': 25500,
+        'NIFTY_AUTO': 27100,
+        'NIFTY_FMCG': 49000,
+        'NIFTY_METAL': 12300,
+        'NIFTY_REALTY': 870,
+        'NIFTY_ENERGY': 38600,
+        'NIFTY_PSU_BANK': 8200,
+        'FINNIFTY': 25700,
+        'MIDCPNIFTY': 13200,
+        'INDIA_VIX': 14.5,
+        'S_AND_P_500': 7400,
+        'NASDAQ': 25100,
+        'DOW_JONES': 51700,
         'RELIANCE': 1300,
         'TCS': 2085,
         'HDFCBANK': 825,
@@ -1460,112 +1621,42 @@ def generate_simulated_market_data(symbol):
         'data_source': 'simulated'
     }
 
-def get_current_market_data(symbol, retries=3):
-    """Get current market data with highest accuracy and retry logic"""
+def get_current_market_data(symbol, retries=1):
+    """Get current market data with fast caching and fallback logic"""
     if SIMULATION_MODE:
         return generate_simulated_market_data(symbol)
     config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol)
     if not config:
         logger.error(f"Invalid symbol: {symbol}")
-        return None
+        return generate_simulated_market_data(symbol)
         
     # Check cache first
     cached_data = market_data_cache.get(symbol)
     if cached_data:
         return cached_data
         
-    for attempt in range(retries):
-        try:
-            logger.info(f"Fetching market data for {symbol} (Attempt {attempt + 1}/{retries})...")
-            ticker = yf.Ticker(config['symbol'])
+    try:
+        ticker = yf.Ticker(config['symbol'])
+        now = datetime.now(INDIAN_TIMEZONE)
+        
+        # Try daily data (fastest and most reliable single yfinance query)
+        daily_data = ticker.history(period="5d", interval="1d")
+        if not daily_data.empty:
+            latest = daily_data.iloc[-1]
+            previous_close = float(daily_data.iloc[-2]['Close']) if len(daily_data) >= 2 else float(latest['Close'])
+            daily_high = float(latest['High'])
+            daily_low = float(latest['Low'])
             
-            # Try multiple approaches for current data
-            now = datetime.now(INDIAN_TIMEZONE)
-            
-            # Method 1: Try to get today's data (1-minute intervals)
-            try:
-                today_data = ticker.history(period="1d", interval="1m")
-                if not today_data.empty:
-                    latest = today_data.iloc[-1]
-                    
-                    # Get previous close for change calculation
-                    yesterday_data = ticker.history(period="2d", interval="1d")
-                    if len(yesterday_data) >= 2:
-                        previous_close = float(yesterday_data.iloc[-2]['Close'])
-                    else:
-                        previous_close = float(latest['Close'])
-                    
-                    daily_high = float(today_data['High'].max())
-                    daily_low = float(today_data['Low'].min())
-                    
-                    data = _format_market_data(symbol, config['display_name'], latest, previous_close, 'yahoo_finance_live', now, daily_high, daily_low)
-                    logger.info(f"Successfully fetched live data for {symbol}: ₹{data['price']}")
-                    market_data_cache.set(symbol, data)
-                    return data
-            except Exception as e:
-                logger.warning(f"Live data method failed for {symbol}: {e}")
-            
-            # Method 2: Try daily data (recent 5 days)
-            try:
-                daily_data = ticker.history(period="5d", interval="1d")
-                if not daily_data.empty:
-                    latest = daily_data.iloc[-1]
-                    
-                    if len(daily_data) >= 2:
-                        previous_close = float(daily_data.iloc[-2]['Close'])
-                    else:
-                        previous_close = float(latest['Close'])
-                    
-                    daily_high = float(latest['High'])
-                    daily_low = float(latest['Low'])
-                    
-                    data = _format_market_data(symbol, config['display_name'], latest, previous_close, 'yahoo_finance_daily', now, daily_high, daily_low)
-                    logger.info(f"Successfully fetched daily data for {symbol}: ₹{data['price']}")
-                    market_data_cache.set(symbol, data)
-                    return data
-            except Exception as e:
-                logger.warning(f"Daily data method failed for {symbol}: {e}")
-            
-            # Method 3: Try weekly data as last resort
-            try:
-                weekly_data = ticker.history(period="1wk", interval="1d")
-                if not weekly_data.empty:
-                    latest = weekly_data.iloc[-1]
-                    
-                    if len(weekly_data) >= 2:
-                        previous_close = float(weekly_data.iloc[-2]['Close'])
-                    else:
-                        previous_close = float(latest['Close'])
-                    
-                    daily_high = float(latest['High'])
-                    daily_low = float(latest['Low'])
-                    
-                    data = _format_market_data(symbol, config['display_name'], latest, previous_close, 'yahoo_finance_weekly', now, daily_high, daily_low)
-                    logger.info(f"Successfully fetched weekly data for {symbol}: ₹{data['price']}")
-                    market_data_cache.set(symbol, data)
-                    return data
-            except Exception as e:
-                logger.warning(f"Weekly data method failed for {symbol}: {e}")
-                
-            # Wait before next attempt with exponential backoff
-            if attempt < retries - 1:
-                backoff_delay = min(2 ** attempt, 8)  # 1s, 2s, 4s (max 8s)
-                time.sleep(backoff_delay)
-                
-        except Exception as e:
-            logger.error(f"Error in attempt {attempt + 1} for {symbol}: {e}")
-            if attempt < retries - 1:
-                backoff_delay = min(2 ** attempt, 8)
-                time.sleep(backoff_delay)
-    
-    logger.warning(f"All yfinance attempts failed for {symbol}. Trying AlphaVantage fallback...")
-    av_data = fetch_alphavantage_quote(symbol)
-    if av_data:
-        market_data_cache.set(symbol, av_data)
-        return av_data
+            data = _format_market_data(symbol, config['display_name'], latest, previous_close, 'yahoo_finance_daily', now, daily_high, daily_low)
+            market_data_cache.set(symbol, data)
+            return data
+    except Exception as e:
+        logger.warning(f"yfinance fetch failed for {symbol}: {e}")
+        
+    sim_data = generate_simulated_market_data(symbol)
+    market_data_cache.set(symbol, sim_data)
+    return sim_data
 
-    logger.error(f"All data sources and retries failed for {symbol}. Returning None.")
-    return None
 
 def get_day_by_day_historical_data(symbol, days=7):
     """Get day-by-day historical closing values with correct latest closing price"""
@@ -1762,7 +1853,13 @@ def generate_fallback_candle_data(symbol, timeframe='1day'):
     """Generate realistic fallback OHLC candle data"""
     config = INDIAN_MARKET_CONFIG.get(symbol) or INDIAN_STOCKS_CONFIG.get(symbol)
     now = datetime.now(INDIAN_TIMEZONE)
-    base_prices = {'NIFTY_50': 22450, 'BANK_NIFTY': 46200, 'SENSEX': 73800}
+    base_prices = {
+        'NIFTY_50': 24200, 'SENSEX': 77530, 'NIFTY_NEXT_50': 71500, 'NIFTY_MIDCAP_50': 17500,
+        'NIFTY_500': 22700, 'BANK_NIFTY': 56000, 'NIFTY_IT': 28500, 'NIFTY_PHARMA': 25500,
+        'NIFTY_AUTO': 27100, 'NIFTY_FMCG': 49000, 'NIFTY_METAL': 12300, 'NIFTY_REALTY': 870,
+        'NIFTY_ENERGY': 38600, 'NIFTY_PSU_BANK': 8200, 'FINNIFTY': 25700, 'MIDCPNIFTY': 13200,
+        'INDIA_VIX': 14.5, 'S_AND_P_500': 7400, 'NASDAQ': 25100, 'DOW_JONES': 51700
+    }
     base = base_prices.get(symbol, 22450)
 
     # Number of candles per timeframe
@@ -1974,25 +2071,31 @@ def validate_symbol(symbol: str, allow_stocks: bool = False) -> Optional[str]:
 # OPTIONS CHAIN — F&O data generation with Black-Scholes pricing
 # ══════════════════════════════════════════════════════════════
 
-# Symbols that support F&O (SENSEX is BSE, no F&O on NSE)
-FNO_SUPPORTED_SYMBOLS = {'NIFTY_50', 'BANK_NIFTY'}
+# Symbols that support F&O
+FNO_SUPPORTED_SYMBOLS = {'NIFTY_50', 'BANK_NIFTY', 'FINNIFTY', 'MIDCPNIFTY'}
 
 # Strike intervals per symbol (as per NSE conventions)
 FNO_STRIKE_INTERVALS = {
     'NIFTY_50': 50,
     'BANK_NIFTY': 100,
+    'FINNIFTY': 50,
+    'MIDCPNIFTY': 50,
 }
 
 # Implied volatility per symbol (annualized)
 FNO_VOLATILITY = {
     'NIFTY_50': 0.15,
     'BANK_NIFTY': 0.18,
+    'FINNIFTY': 0.16,
+    'MIDCPNIFTY': 0.19,
 }
 
 # Peak open interest for simulation
 FNO_PEAK_OI = {
     'NIFTY_50': 500000,
     'BANK_NIFTY': 400000,
+    'FINNIFTY': 350000,
+    'MIDCPNIFTY': 300000,
 }
 
 
