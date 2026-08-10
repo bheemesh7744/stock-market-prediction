@@ -40,7 +40,6 @@ def _get_current_username():
 # ══════════════════════════════════════════════════════════════
 
 @auth_bp.route('/api/auth/register', methods=['POST'])
-@csrf_protect
 def register():
     """Create a new user account.
     
@@ -81,7 +80,6 @@ def register():
 # ══════════════════════════════════════════════════════════════
 
 @auth_bp.route('/api/auth/login', methods=['POST'])
-@csrf_protect
 def login():
     """Authenticate an existing user.
     
@@ -120,7 +118,6 @@ def login():
 # ══════════════════════════════════════════════════════════════
 
 @auth_bp.route('/api/auth/logout', methods=['POST'])
-@csrf_protect
 def logout():
     """Clear the user session."""
     username = session.get('username', 'Unknown')
