@@ -15,5 +15,9 @@ services:
         value: "10000"
       - key: SECRET_KEY
         generateValue: true
+      - key: FRONTEND_URL
+        value: "https://agentic-ai-trader.vercel.app"
+      - key: JWT_SECRET
+        generateValue: true
     autoDeploy: true
     healthCheckPath: /api/health

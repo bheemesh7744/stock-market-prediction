@@ -77,7 +77,7 @@ HTML_TEMPLATE = r"""
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script defer src="https://unpkg.com/plotly.js-dist@2.35.3/plotly.js" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.plot.ly/plotly-2.35.3.min.js" crossorigin="anonymous"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
     <style>
@@ -130,24 +130,38 @@ HTML_TEMPLATE = r"""
             100% { transform: translate(-30px, -40px) scale(1.05); }
         }
 
-        /* ── Glass card ── */
+        /* ── Glass card & High-Density Neon Glow ── */
         .glass-card {
             background: var(--bg-card);
-            backdrop-filter: blur(20px) saturate(1.4);
-            -webkit-backdrop-filter: blur(20px) saturate(1.4);
-            border: 1px solid var(--border-subtle);
-            border-radius: 24px;
+            backdrop-filter: blur(24px) saturate(1.5);
+            -webkit-backdrop-filter: blur(24px) saturate(1.5);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 20px;
             transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease;
             position: relative;
             z-index: 1;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
         }
         .glass-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-            border-color: rgba(255,255,255,0.12);
+            transform: translateY(-3px) scale(1.01);
+            box-shadow: 0 18px 45px rgba(0,0,0,0.6), 0 0 20px rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.3);
         }
+
+        /* Dynamic price change pulse keyframes */
+        @keyframes pulseFlashUp {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); border-color: #10b981; }
+            50% { box-shadow: 0 0 25px 5px rgba(16, 185, 129, 0.4); border-color: #34d399; }
+            100% { box-shadow: 0 10px 30px rgba(0,0,0,0.4); border-color: rgba(255, 255, 255, 0.07); }
+        }
+        @keyframes pulseFlashDown {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.6); border-color: #f43f5e; }
+            50% { box-shadow: 0 0 25px 5px rgba(244, 63, 94, 0.4); border-color: #fb7185; }
+            100% { box-shadow: 0 10px 30px rgba(0,0,0,0.4); border-color: rgba(255, 255, 255, 0.07); }
+        }
+        .flash-up { animation: pulseFlashUp 1s ease-out; }
+        .flash-down { animation: pulseFlashDown 1s ease-out; }
 
         /* Border indicator top accents without breaking rounded corners */
         .glass-card::after {
@@ -709,86 +723,109 @@ HTML_TEMPLATE = r"""
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-1">
         <!-- Navigation Tab Bar (Glassmorphic) -->
         <!-- Navigation Tab Bar (Glassmorphic) -->
-        <div class="flex gap-2 mb-8 bg-white/[0.02] border border-white/[0.05] p-1.5 rounded-2xl max-w-lg mx-auto sm:mx-0 overflow-x-auto whitespace-nowrap">
+        <div class="flex gap-2 mb-8 bg-white/[0.02] border border-white/[0.05] p-1.5 rounded-2xl max-w-xl mx-auto sm:mx-0 overflow-x-auto whitespace-nowrap">
             <button id="tab-indices" onclick="switchSection('indices')" class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 bg-gradient-to-r from-emerald-600/80 to-teal-600/80 text-white shadow-lg shadow-emerald-500/10 active min-w-[100px]">
                 <i class="fas fa-chart-line"></i><span>Indices</span>
             </button>
             <button id="tab-stocks" onclick="switchSection('stocks')" class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 text-gray-400 hover:text-white hover:bg-white/[0.04] min-w-[100px]">
                 <i class="fas fa-building"></i><span>Stocks</span>
             </button>
+            <button id="tab-mf" onclick="switchSection('mf')" class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 text-gray-400 hover:text-white hover:bg-white/[0.04] min-w-[120px]">
+                <i class="fas fa-cubes"></i><span>Mutual Funds</span>
+            </button>
         </div>
 
-        <!-- Market Cards -->
-        <section class="market-grid mb-8" id="market-cards-section">
-            <!-- NIFTY 50 -->
-            <div id="nifty-card" class="glass-card card-emerald p-5 animate-fade-in-up">
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h2 class="text-[1.05rem] font-bold tracking-tight">NIFTY 50</h2>
-                        <p class="text-[0.7rem] text-gray-500">NSE · National Stock Exchange</p>
-                    </div>
-                    <span class="tag tag-emerald">NSE</span>
+        <!-- Market Indices Section -->
+        <section class="mb-8" id="market-cards-section">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+                <div>
+                    <h2 class="text-base font-bold tracking-tight flex items-center gap-2">
+                        <i class="fas fa-chart-line text-emerald-400"></i> Market Indices
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Real-time tracking across Benchmark, Sectoral, Derivative & Global Markets</p>
                 </div>
-                <div class="flex justify-between items-end mb-4">
-                    <div>
-                        <div id="nifty-price" class="text-[1.7rem] font-extrabold tracking-tight price-value">--</div>
-                        <div id="nifty-change" class="text-sm font-semibold mt-0.5">--</div>
-                    </div>
-                    <div id="nifty-prediction" class="pill-hold px-3 py-1 rounded-full text-xs font-bold">HOLD</div>
-                </div>
-                <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                    <div class="flex justify-between"><span class="text-gray-500">High</span><span id="nifty-high" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Low</span><span id="nifty-low" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Volume</span><span id="nifty-volume" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Updated</span><span id="nifty-time" class="font-medium mono" style="font-size:0.7rem">--:--</span></div>
+                <!-- Category Filter Pills -->
+                <div class="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 text-xs bg-white/[0.02] border border-white/[0.05] p-1 rounded-xl">
+                    <button onclick="setIndexCategory('all')" id="idx-cat-all" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">All</button>
+                    <button onclick="setIndexCategory('Benchmark')" id="idx-cat-Benchmark" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Benchmark</button>
+                    <button onclick="setIndexCategory('Sectoral')" id="idx-cat-Sectoral" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Sectoral</button>
+                    <button onclick="setIndexCategory('Derivatives')" id="idx-cat-Derivatives" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Derivatives</button>
+                    <button onclick="setIndexCategory('Global')" id="idx-cat-Global" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Global</button>
                 </div>
             </div>
 
-            <!-- BANK NIFTY -->
-            <div id="banknifty-card" class="glass-card card-purple p-5 animate-fade-in-up delay-100">
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h2 class="text-[1.05rem] font-bold tracking-tight">BANK NIFTY</h2>
-                        <p class="text-[0.7rem] text-gray-500">NSE · Banking Index</p>
+            <!-- Dynamic Market Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="market-cards-grid">
+                <!-- NIFTY 50 -->
+                <div id="nifty-card" class="glass-card card-emerald p-5 animate-fade-in-up cursor-pointer hover:scale-[1.01] transition-transform" onclick="selectIndexSymbol('NIFTY_50')">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h2 class="text-[1.05rem] font-bold tracking-tight">NIFTY 50</h2>
+                            <p class="text-[0.7rem] text-gray-500">NSE · National Stock Exchange</p>
+                        </div>
+                        <span class="tag tag-emerald">NSE</span>
                     </div>
-                    <span class="tag tag-purple">NSE</span>
-                </div>
-                <div class="flex justify-between items-end mb-4">
-                    <div>
-                        <div id="banknifty-price" class="text-[1.7rem] font-extrabold tracking-tight price-value">--</div>
-                        <div id="banknifty-change" class="text-sm font-semibold mt-0.5">--</div>
+                    <div class="flex justify-between items-end mb-4">
+                        <div>
+                            <div id="nifty-price" class="text-[1.7rem] font-extrabold tracking-tight price-value">--</div>
+                            <div id="nifty-change" class="text-sm font-semibold mt-0.5">--</div>
+                        </div>
+                        <div id="nifty-prediction" class="pill-hold px-3 py-1 rounded-full text-xs font-bold">HOLD</div>
                     </div>
-                    <div id="banknifty-prediction" class="pill-hold px-3 py-1 rounded-full text-xs font-bold">HOLD</div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                        <div class="flex justify-between"><span class="text-gray-500">High</span><span id="nifty-high" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Low</span><span id="nifty-low" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Volume</span><span id="nifty-volume" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Updated</span><span id="nifty-time" class="font-medium mono" style="font-size:0.7rem">--:--</span></div>
+                    </div>
                 </div>
-                <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                    <div class="flex justify-between"><span class="text-gray-500">High</span><span id="banknifty-high" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Low</span><span id="banknifty-low" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Volume</span><span id="banknifty-volume" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Updated</span><span id="banknifty-time" class="font-medium mono" style="font-size:0.7rem">--:--</span></div>
-                </div>
-            </div>
 
-            <!-- SENSEX -->
-            <div id="sensex-card" class="glass-card card-blue p-5 animate-fade-in-up delay-200">
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h2 class="text-[1.05rem] font-bold tracking-tight">SENSEX</h2>
-                        <p class="text-[0.7rem] text-gray-500">BSE · Bombay Stock Exchange</p>
+                <!-- BANK NIFTY -->
+                <div id="banknifty-card" class="glass-card card-purple p-5 animate-fade-in-up delay-100 cursor-pointer hover:scale-[1.01] transition-transform" onclick="selectIndexSymbol('BANK_NIFTY')">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h2 class="text-[1.05rem] font-bold tracking-tight">BANK NIFTY</h2>
+                            <p class="text-[0.7rem] text-gray-500">NSE · Banking Index</p>
+                        </div>
+                        <span class="tag tag-purple">NSE</span>
                     </div>
-                    <span class="tag tag-blue">BSE</span>
-                </div>
-                <div class="flex justify-between items-end mb-4">
-                    <div>
-                        <div id="sensex-price" class="text-[1.7rem] font-extrabold tracking-tight price-value">--</div>
-                        <div id="sensex-change" class="text-sm font-semibold mt-0.5">--</div>
+                    <div class="flex justify-between items-end mb-4">
+                        <div>
+                            <div id="banknifty-price" class="text-[1.7rem] font-extrabold tracking-tight price-value">--</div>
+                            <div id="banknifty-change" class="text-sm font-semibold mt-0.5">--</div>
+                        </div>
+                        <div id="banknifty-prediction" class="pill-hold px-3 py-1 rounded-full text-xs font-bold">HOLD</div>
                     </div>
-                    <div id="sensex-prediction" class="pill-hold px-3 py-1 rounded-full text-xs font-bold">HOLD</div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                        <div class="flex justify-between"><span class="text-gray-500">High</span><span id="banknifty-high" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Low</span><span id="banknifty-low" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Volume</span><span id="banknifty-volume" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Updated</span><span id="banknifty-time" class="font-medium mono" style="font-size:0.7rem">--:--</span></div>
+                    </div>
                 </div>
-                <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                    <div class="flex justify-between"><span class="text-gray-500">High</span><span id="sensex-high" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Low</span><span id="sensex-low" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Volume</span><span id="sensex-volume" class="font-medium">--</span></div>
-                    <div class="flex justify-between"><span class="text-gray-500">Updated</span><span id="sensex-time" class="font-medium mono" style="font-size:0.7rem">--:--</span></div>
+
+                <!-- SENSEX -->
+                <div id="sensex-card" class="glass-card card-blue p-5 animate-fade-in-up delay-200 cursor-pointer hover:scale-[1.01] transition-transform" onclick="selectIndexSymbol('SENSEX')">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h2 class="text-[1.05rem] font-bold tracking-tight">SENSEX</h2>
+                            <p class="text-[0.7rem] text-gray-500">BSE · Bombay Stock Exchange</p>
+                        </div>
+                        <span class="tag tag-blue">BSE</span>
+                    </div>
+                    <div class="flex justify-between items-end mb-4">
+                        <div>
+                            <div id="sensex-price" class="text-[1.7rem] font-extrabold tracking-tight price-value">--</div>
+                            <div id="sensex-change" class="text-sm font-semibold mt-0.5">--</div>
+                        </div>
+                        <div id="sensex-prediction" class="pill-hold px-3 py-1 rounded-full text-xs font-bold">HOLD</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                        <div class="flex justify-between"><span class="text-gray-500">High</span><span id="sensex-high" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Low</span><span id="sensex-low" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Volume</span><span id="sensex-volume" class="font-medium">--</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Updated</span><span id="sensex-time" class="font-medium mono" style="font-size:0.7rem">--:--</span></div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -816,6 +853,34 @@ HTML_TEMPLATE = r"""
                 <div class="col-span-full py-16 text-center text-gray-600 glass-card">
                     <div class="animate-spin rounded-full h-8 w-8 border-2 border-transparent border-t-emerald-500 mx-auto mb-3"></div>
                     <p class="text-sm">Fetching stock market live predictions...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Mutual Funds Section -->
+        <section id="mf-section" class="hidden mb-8 animate-fade-in">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                <div>
+                    <h2 class="text-base font-bold tracking-tight"><i class="fas fa-cubes mr-2 text-teal-400"></i>Top Indian Mutual Funds & Smart SIP</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Live NAVs, 3Y CAGR, portfolio holdings & AI-powered Smart SIP predictions</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <!-- Category Filter Buttons -->
+                    <div class="flex rounded-xl bg-white/[0.02] border border-white/[0.05] p-1 text-xs overflow-x-auto max-w-full">
+                        <button onclick="setMFFilter('all')" id="btn-mf-all" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 tf-active">All</button>
+                        <button onclick="setMFFilter('Flexi Cap')" id="btn-mf-flexi" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Flexi Cap</button>
+                        <button onclick="setMFFilter('Small Cap')" id="btn-mf-small" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Small Cap</button>
+                        <button onclick="setMFFilter('Large Cap')" id="btn-mf-large" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Large Cap</button>
+                        <button onclick="setMFFilter('Mid Cap')" id="btn-mf-mid" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Mid Cap</button>
+                        <button onclick="setMFFilter('Sectoral / IT')" id="btn-mf-it" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Sectoral/IT</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4" id="mf-grid">
+                <div class="col-span-full py-16 text-center text-gray-600 glass-card">
+                    <div class="animate-spin rounded-full h-8 w-8 border-2 border-transparent border-t-teal-500 mx-auto mb-3"></div>
+                    <p class="text-sm">Fetching Mutual Funds live NAV & Smart SIP signals...</p>
                 </div>
             </div>
         </section>
@@ -869,11 +934,16 @@ HTML_TEMPLATE = r"""
                 <button onclick="setTimeframe('lifetime')" class="tf-pill" data-tf="lifetime">Lifetime</button>
             </div>
             
-            <!-- Chart Type Controls -->
-            <div id="chart-type-controls" class="flex flex-wrap gap-2 mb-4 text-xs">
-                <span class="text-gray-400 font-medium self-center mr-2">Chart Type:</span>
-                <button onclick="setChartType('candle')" class="tf-pill tf-active" id="btn-chart-candle">Candles</button>
-                <button onclick="setChartType('graph')" class="tf-pill" id="btn-chart-graph">Graph</button>
+            <!-- Chart Type & Zoom Controls -->
+            <div id="chart-type-controls" class="flex flex-wrap items-center justify-between gap-2 mb-4 text-xs">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400 font-medium mr-1">Chart Type:</span>
+                    <button onclick="setChartType('candle')" class="tf-pill tf-active" id="btn-chart-candle">Candles</button>
+                    <button onclick="setChartType('graph')" class="tf-pill" id="btn-chart-graph">Graph</button>
+                </div>
+                <button onclick="resetChartZoom()" class="tf-pill text-gray-400 hover:text-white transition-all duration-200" title="Reset Chart Zoom & Scale">
+                    <i class="fas fa-expand mr-1 text-emerald-400"></i>Reset Zoom
+                </button>
             </div>
             <div id="chart-container" style="min-height:420px;display:flex;align-items:center;justify-content:center;">
                 <div class="text-center text-gray-600">
@@ -913,7 +983,7 @@ HTML_TEMPLATE = r"""
         <div class="modal-panel">
             <div class="px-6 py-4 border-b" style="border-color:var(--border-subtle);background:rgba(255,255,255,0.02);border-radius:20px 20px 0 0;">
                 <div class="flex justify-between items-center">
-                    <h2 class="text-lg font-bold"><i class="fas fa-brain mr-2 text-teal-400"></i>AI Market Analysis</h2>
+                    <h2 class="text-lg font-bold"><i class="fas fa-brain mr-2 text-teal-400"></i>AI Analysis</h2>
                     <button onclick="closeAIModal()" class="text-gray-500 hover:text-white transition-colors p-1"><i class="fas fa-xmark text-lg"></i></button>
                 </div>
             </div>
@@ -1140,10 +1210,33 @@ let currentChartType = 'candle';
             const chartSelect = document.getElementById('chart-symbol-select');
             
             const INDICES_OPTIONS = `
-                <optgroup label="Indices" style="background:#0d1117;color:var(--text-primary);">
+                <optgroup label="Benchmark Indices" style="background:#0d1117;color:var(--text-primary);">
                     <option value="NIFTY_50" selected>NIFTY 50</option>
-                    <option value="BANK_NIFTY">BANK NIFTY</option>
                     <option value="SENSEX">SENSEX</option>
+                    <option value="NIFTY_NEXT_50">NIFTY Next 50</option>
+                    <option value="NIFTY_MIDCAP_50">NIFTY Midcap 50</option>
+                    <option value="NIFTY_500">NIFTY 500</option>
+                </optgroup>
+                <optgroup label="Sectoral Indices" style="background:#0d1117;color:var(--text-primary);">
+                    <option value="BANK_NIFTY">BANK NIFTY</option>
+                    <option value="NIFTY_IT">NIFTY IT</option>
+                    <option value="NIFTY_PHARMA">NIFTY Pharma</option>
+                    <option value="NIFTY_AUTO">NIFTY Auto</option>
+                    <option value="NIFTY_FMCG">NIFTY FMCG</option>
+                    <option value="NIFTY_METAL">NIFTY Metal</option>
+                    <option value="NIFTY_REALTY">NIFTY Realty</option>
+                    <option value="NIFTY_ENERGY">NIFTY Energy</option>
+                    <option value="NIFTY_PSU_BANK">NIFTY PSU Bank</option>
+                </optgroup>
+                <optgroup label="Financial & Derivatives" style="background:#0d1117;color:var(--text-primary);">
+                    <option value="FINNIFTY">FINNIFTY</option>
+                    <option value="MIDCPNIFTY">MIDCPNIFTY</option>
+                    <option value="INDIA_VIX">India VIX</option>
+                </optgroup>
+                <optgroup label="Global Indices" style="background:#0d1117;color:var(--text-primary);">
+                    <option value="S_AND_P_500">S&P 500 (US)</option>
+                    <option value="NASDAQ">NASDAQ Composite (US)</option>
+                    <option value="DOW_JONES">Dow Jones (US)</option>
                 </optgroup>
             `;
             
@@ -1183,16 +1276,18 @@ let currentChartType = 'candle';
 
         function switchSection(section) {
             console.log('🔄 Switching section to:', section);
-            if (!['indices', 'stocks'].includes(section)) return;
+            if (!['indices', 'stocks', 'mf'].includes(section)) return;
             
             const tabs = {
                 indices: document.getElementById('tab-indices'),
                 stocks: document.getElementById('tab-stocks'),
+                mf: document.getElementById('tab-mf'),
             };
             
             const sections = {
                 indices: document.getElementById('market-cards-section'),
                 stocks: document.getElementById('stocks-section'),
+                mf: document.getElementById('mf-section'),
             };
             
             // Reset classes
@@ -1212,9 +1307,6 @@ let currentChartType = 'candle';
                     if (key === section) {
                         sec.style.display = (key === 'indices') ? 'grid' : 'block';
                         sec.classList.remove('hidden');
-                        
-                        // Load data when tab is opened
-                        
                     } else {
                         sec.style.display = 'none';
                         sec.classList.add('hidden');
@@ -1237,6 +1329,8 @@ let currentChartType = 'candle';
                 currentChartSymbol = activeSymbol;
                 loadHistoricalData();
                 loadCandleData(activeSymbol, currentTimeframe);
+            } else if (section === 'mf') {
+                loadMutualFundsData();
             }
         }
 
@@ -1348,15 +1442,24 @@ let currentChartType = 'candle';
                 const response = await apiFetch('/api/stocks/list');
                 if (!response.ok) throw new Error('API request failed');
                 
-                stocksData = await response.json();
+                const freshData = await response.json();
                 
-                if (!stocksData || stocksData.length === 0) {
-                    grid.innerHTML = '<div class="col-span-full py-16 text-center text-gray-500 glass-card"><i class="fas fa-triangle-exclamation text-2xl mb-2 text-amber-500"></i><p class="text-sm">No stocks data available. Retrying...</p></div>';
+                if (!freshData || freshData.length === 0) {
+                    if (!stocksData || stocksData.length === 0) {
+                        grid.innerHTML = '<div class="col-span-full py-16 text-center text-gray-500 glass-card"><i class="fas fa-triangle-exclamation text-2xl mb-2 text-amber-500"></i><p class="text-sm">No stocks data available. Retrying...</p></div>';
+                    }
                     return;
                 }
                 
+                const isFirstLoad = !stocksData || stocksData.length === 0;
+                stocksData = freshData;
                 await loadWatchlist();
-                renderStocksGrid();
+
+                if (isFirstLoad) {
+                    renderStocksGrid();
+                } else {
+                    freshData.forEach(s => updateStockCard(s));
+                }
                 
                 // Subscribe to real-time tick stream for all fetched stocks
                 if (typeof socket !== 'undefined' && socket && socket.connected) {
@@ -1412,7 +1515,7 @@ let currentChartType = 'candle';
             const sparkSVG = generateSparklineSVG(sparkPrices, isUp);
 
             return `
-                <div class="glass-card p-4 flex flex-col justify-between cursor-pointer hover:border-white/20 transition-all duration-300 stock-card ${cardSignalClass}" onclick="focusOnStock('${stock.symbol}')">
+                <div id="stock-card-${stock.symbol}" class="glass-card p-4 flex flex-col justify-between cursor-pointer hover:border-white/20 transition-all duration-300 stock-card ${cardSignalClass}" onclick="focusOnStock('${stock.symbol}')">
                     <div>
                         <div class="flex justify-between items-start mb-2">
                             <div class="truncate pr-2" style="max-width: 65%;">
@@ -1432,8 +1535,8 @@ let currentChartType = 'candle';
                         
                         <div class="flex justify-between items-end my-3">
                             <div>
-                                <div class="text-base sm:text-lg font-extrabold tracking-tight font-mono">₹${stock.price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                                <div class="text-[0.7rem] font-semibold ${changeClass} mt-0.5">${changeSign} ${Math.abs(stock.change).toFixed(2)} (${stock.change_percent.toFixed(2)}%)</div>
+                                <div id="stock-price-${stock.symbol}" class="text-base sm:text-lg font-extrabold tracking-tight font-mono price-value">₹${stock.price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                <div id="stock-change-${stock.symbol}" class="text-[0.7rem] font-semibold ${changeClass} mt-0.5">${changeSign} ${Math.abs(stock.change).toFixed(2)} (${stock.change_percent.toFixed(2)}%)</div>
                             </div>
                             <div class="flex-shrink-0">${sparkSVG}</div>
                         </div>
@@ -1448,6 +1551,9 @@ let currentChartType = 'candle';
                         <div class="bg-white/[0.02] border border-white/[0.04] rounded p-1.5 text-[0.6rem] text-gray-400 hover:text-white transition-colors leading-relaxed" style="white-space: normal; word-break: break-word;" title="${stock.analysis_text}">
                             ${stock.analysis_text}
                         </div>
+                        <button onclick="event.stopPropagation(); openStockAIAnalysis('${stock.symbol}')" class="w-full mt-2 py-1.5 rounded-lg text-[0.65rem] font-bold flex items-center justify-center gap-1.5 transition-all duration-300 hover:scale-[1.02]" style="background:linear-gradient(135deg, rgba(139,92,246,0.15), rgba(45,212,191,0.15)); border:1px solid rgba(139,92,246,0.25); color:#a78bfa;">
+                            <i class="fas fa-brain"></i> AI Analysis
+                        </button>
                     </div>
                 </div>
             `;
@@ -1486,6 +1592,337 @@ let currentChartType = 'candle';
             }
         }
 
+        /* ═══════════════════ MUTUAL FUNDS LOGIC ═══════════════════ */
+        let mfData = [];
+        let currentMFFilter = 'all';
+
+        async function loadMutualFundsData() {
+            try {
+                const response = await apiFetch(`/api/mf/list?category=${encodeURIComponent(currentMFFilter)}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && Array.isArray(result.data)) {
+                        mfData = result.data;
+                        renderMutualFundsGrid();
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch mutual funds data:", err);
+            }
+        }
+
+        function setMFFilter(category) {
+            currentMFFilter = category;
+            const catMap = {
+                'all': 'btn-mf-all',
+                'Flexi Cap': 'btn-mf-flexi',
+                'Small Cap': 'btn-mf-small',
+                'Large Cap': 'btn-mf-large',
+                'Mid Cap': 'btn-mf-mid',
+                'Sectoral / IT': 'btn-mf-it'
+            };
+            
+            for (const [catKey, btnId] of Object.entries(catMap)) {
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    if (catKey.toLowerCase() === category.toLowerCase()) {
+                        btn.className = "px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 tf-active";
+                    } else {
+                        btn.className = "px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white";
+                    }
+                }
+            }
+            loadMutualFundsData();
+        }
+
+        function renderMutualFundsGrid() {
+            const grid = document.getElementById('mf-grid');
+            if (!grid) return;
+            
+            if (!mfData || mfData.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-gray-500 glass-card">
+                        <i class="fas fa-cubes text-2xl mb-2 text-teal-400/50"></i>
+                        <p class="text-sm font-medium">No mutual funds found in this category.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = mfData.map(fund => createMFCardHTML(fund)).join('');
+        }
+
+        function createMFCardHTML(fund) {
+            const isUp = fund.nav_change >= 0;
+            const changeClass = isUp ? 'text-emerald-400' : 'text-rose-400';
+            const changeSign = isUp ? '+' : '';
+            
+            const badgeClass = fund.ai_signal === 'STRONG BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                             fund.ai_signal === 'BUY' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' :
+                             fund.ai_signal === 'ACCUMULATE SIP' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                             'bg-amber-500/10 text-amber-400 border-amber-500/20';
+
+            const starCount = Math.max(1, Math.min(5, Number(fund.rating) || 5));
+            const starHTML = Array(starCount).fill('<i class="fas fa-star text-amber-400 text-[0.65rem]"></i>').join('');
+
+            return `
+                <div id="mf-card-${fund.symbol}" class="glass-card p-5 flex flex-col justify-between hover:border-teal-500/30 transition-all duration-300">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="pr-2">
+                                <span class="text-[0.65rem] font-semibold text-teal-400 uppercase tracking-wider bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20 mb-1 inline-block">${fund.category}</span>
+                                <h3 class="text-sm font-bold text-gray-100 leading-snug mt-1">${fund.name}</h3>
+                                <p class="text-[0.7rem] text-gray-400 mt-0.5">${fund.amc} · ${fund.aum}</p>
+                            </div>
+                            <div class="flex flex-col items-end gap-1">
+                                <div class="flex items-center gap-0.5">${starHTML}</div>
+                                <span class="text-[0.65rem] font-bold px-2 py-0.5 rounded-full border ${badgeClass}">${fund.ai_signal}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-end my-4 bg-white/[0.02] border border-white/[0.04] p-3 rounded-xl">
+                            <div>
+                                <span class="text-[0.65rem] text-gray-500 font-medium">NAV (Direct Plan)</span>
+                                <div id="mf-nav-${fund.symbol}" class="text-lg font-extrabold font-mono text-white">₹${Number(fund.nav).toFixed(2)}</div>
+                                <div id="mf-change-${fund.symbol}" class="text-xs font-semibold ${changeClass}">${changeSign}₹${Number(fund.nav_change).toFixed(2)} (${changeSign}${Number(fund.nav_change_pct).toFixed(2)}%)</div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[0.65rem] text-gray-500 font-medium">3Y CAGR</span>
+                                <div class="text-base font-bold font-mono text-emerald-400">+${fund.cagr_3y}%</div>
+                                <span class="text-[0.65rem] text-gray-400">1Y: +${fund.cagr_1y}%</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 text-[0.7rem] text-gray-400 mb-3 bg-black/20 p-2.5 rounded-lg border border-white/[0.03]">
+                            <div><span class="text-gray-500">Expense Ratio:</span> <span class="font-semibold text-gray-300 font-mono">${fund.expense_ratio}%</span></div>
+                            <div><span class="text-gray-500">Min. SIP:</span> <span class="font-semibold text-gray-300 font-mono">₹${fund.min_sip}</span></div>
+                            <div><span class="text-gray-500">Risk Level:</span> <span class="font-semibold text-rose-400">${fund.risk}</span></div>
+                            <div><span class="text-gray-500">AI Score:</span> <span class="font-semibold text-teal-400 font-mono">${fund.ai_score}/100</span></div>
+                        </div>
+                    </div>
+
+                    <button onclick="openMFAIAnalysis('${fund.symbol}')" class="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-gradient-to-r from-teal-600/80 to-emerald-600/80 hover:from-teal-500 hover:to-emerald-500 text-white transition-all shadow-md flex items-center justify-center gap-2">
+                        <i class="fas fa-brain text-teal-200"></i> Smart SIP & AI Forecast
+                    </button>
+                </div>
+            `;
+        }
+
+        async function openMFAIAnalysis(symbol) {
+            const modal = document.getElementById('aiModal');
+            if (!modal) return;
+            
+            modal.classList.add('active');
+            const content = document.getElementById('ai-analysis-content');
+            if (!content) return;
+            
+            content.innerHTML = `
+                <div class="py-16 text-center text-gray-400">
+                    <div class="animate-spin rounded-full h-10 w-10 border-2 border-transparent border-t-teal-500 mx-auto mb-4"></div>
+                    <p class="text-sm font-medium">Running AI Smart SIP & NAV forecast engines for ${symbol}...</p>
+                </div>
+            `;
+            
+            try {
+                const [detailRes, predictRes] = await Promise.all([
+                    apiFetch(`/api/mf/detail/${symbol}`),
+                    apiFetch(`/api/mf/predict/${symbol}`)
+                ]);
+                
+                const detailData = await detailRes.json();
+                const predictData = await predictRes.json();
+                
+                if (!detailData.success || !predictData.success) {
+                    content.innerHTML = `<div class="p-6 text-center text-rose-400 font-medium">Failed to load Mutual Fund AI insights.</div>`;
+                    return;
+                }
+                
+                const fund = detailData.data;
+                const pred = predictData.data;
+                
+                const starCount = Math.max(1, Math.min(5, Number(fund.rating) || 5));
+                const starHTML = Array(starCount).fill('<i class="fas fa-star text-amber-400 text-xs"></i>').join('');
+                
+                const holdingsHTML = (fund.holdings || []).map(h => `
+                    <div class="flex justify-between items-center py-1.5 border-b border-white/[0.04] text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
+                            <span class="font-medium text-gray-200">${h.name}</span>
+                        </div>
+                        <span class="font-mono font-bold text-teal-300">${h.weight}%</span>
+                    </div>
+                `).join('');
+
+                const sipAnalysis = fund.sip_analysis || {
+                    monthly_amount: 5000,
+                    total_invested: 180000,
+                    projected_value: 245000,
+                    total_returns: 65000,
+                    absolute_return_pct: 36.1
+                };
+
+                content.innerHTML = `
+                    <div class="space-y-6">
+                        <!-- Fund Header -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-teal-950/40 via-emerald-950/20 to-black p-5 rounded-2xl border border-teal-500/20">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-semibold text-teal-400 uppercase tracking-wider bg-teal-500/10 px-2.5 py-0.5 rounded-full border border-teal-500/20">${fund.category}</span>
+                                    <div class="flex items-center gap-1 ml-2">${starHTML}</div>
+                                </div>
+                                <h2 class="text-lg font-bold text-white">${fund.name}</h2>
+                                <p class="text-xs text-gray-400 mt-0.5">${fund.amc} · Fund Manager: ${fund.manager}</p>
+                            </div>
+                            <div class="text-left sm:text-right bg-white/[0.03] p-3 rounded-xl border border-white/[0.05]">
+                                <span class="text-xs text-gray-400">Live NAV (Direct Plan)</span>
+                                <div class="text-2xl font-extrabold font-mono text-teal-300">₹${Number(fund.nav).toFixed(2)}</div>
+                                <div class="text-xs font-semibold text-emerald-400">+₹${Number(fund.nav_change).toFixed(2)} (+${Number(fund.nav_change_pct).toFixed(2)}%)</div>
+                            </div>
+                        </div>
+
+                        <!-- Why AI Recommends Signal Banner -->
+                        <div class="glass-card p-4 border-l-4 border-teal-400 bg-teal-500/[0.04]">
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <i class="fas fa-brain text-teal-400 text-sm"></i>
+                                <h3 class="text-xs font-bold text-teal-300 uppercase tracking-wide">Why AI Recommends ${fund.ai_signal}?</h3>
+                            </div>
+                            <p class="text-xs text-gray-300 leading-relaxed font-medium">${pred.why_recommendation || fund.why_recommendation || 'Consistently outperforms benchmark indices with strong risk-adjusted CAGR.'}</p>
+                        </div>
+
+                        <!-- Grid Metrics & AI Signal -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="glass-card p-4 border-l-4 border-teal-500">
+                                <span class="text-xs text-gray-400 font-medium">AI Smart SIP Signal</span>
+                                <div class="text-xl font-black text-teal-400 mt-1">${fund.ai_signal}</div>
+                                <div class="text-xs text-gray-500 mt-1">AI Confidence Score: <span class="font-mono text-teal-300 font-bold">${fund.ai_score}/100</span></div>
+                            </div>
+                            <div class="glass-card p-4 border-l-4 border-emerald-500">
+                                <span class="text-xs text-gray-400 font-medium">Historical Returns</span>
+                                <div class="text-base font-bold text-emerald-400 mt-1">3Y CAGR: +${fund.cagr_3y}%</div>
+                                <div class="text-xs text-gray-400 mt-0.5">1Y: +${fund.cagr_1y}% · 5Y: +${fund.cagr_5y}%</div>
+                            </div>
+                            <div class="glass-card p-4 border-l-4 border-purple-500">
+                                <span class="text-xs text-gray-400 font-medium">Fund Metrics</span>
+                                <div class="text-sm font-bold text-purple-300 mt-1">AUM: ${fund.aum}</div>
+                                <div class="text-xs text-gray-400 mt-0.5">Exp Ratio: ${fund.expense_ratio}% · Min SIP: ₹${fund.min_sip}</div>
+                            </div>
+                        </div>
+
+                        <!-- Pros & Cons -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Pros -->
+                            <div class="glass-card p-4 border border-emerald-500/20 bg-emerald-950/10">
+                                <h3 class="text-xs font-bold text-emerald-400 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-circle-check text-emerald-400"></i> Key Advantages (Pros)
+                                </h3>
+                                <ul class="space-y-2 text-xs">
+                                    ${(pred.pros || fund.pros || []).map(p => `
+                                        <li class="flex items-start gap-2 text-gray-300">
+                                            <i class="fas fa-check text-emerald-400 text-[0.65rem] mt-1 flex-shrink-0"></i>
+                                            <span>${p}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+
+                            <!-- Cons -->
+                            <div class="glass-card p-4 border border-amber-500/20 bg-amber-950/10">
+                                <h3 class="text-xs font-bold text-amber-400 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-triangle-exclamation text-amber-400"></i> Key Risks & Limitations (Cons)
+                                </h3>
+                                <ul class="space-y-2 text-xs">
+                                    ${(pred.cons || fund.cons || []).map(c => `
+                                        <li class="flex items-start gap-2 text-gray-300">
+                                            <i class="fas fa-exclamation text-amber-400 text-[0.65rem] mt-1 flex-shrink-0"></i>
+                                            <span>${c}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- What Will Happen If You Buy? -->
+                        <div class="glass-card p-5 border border-teal-500/20 bg-gradient-to-br from-teal-950/30 via-slate-900 to-black">
+                            <h3 class="text-sm font-bold text-teal-300 mb-3 flex items-center gap-2">
+                                <i class="fas fa-chart-line text-teal-400"></i> What Will Happen If You Buy? (Outcome Scenarios)
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                <div class="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl">
+                                    <div class="font-bold text-gray-300 mb-1 flex items-center gap-1.5">
+                                        <i class="far fa-clock text-amber-400"></i> Short Term (1 – 6 Months)
+                                    </div>
+                                    <p class="text-gray-400 leading-relaxed">${(pred.what_happens_if_you_buy || fund.what_happens_if_you_buy || {}).short_term || 'Price will fluctuate inline with market sentiment.'}</p>
+                                </div>
+                                <div class="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl">
+                                    <div class="font-bold text-gray-300 mb-1 flex items-center gap-1.5">
+                                        <i class="fas fa-gem text-emerald-400"></i> Long Term (3 – 5 Years)
+                                    </div>
+                                    <p class="text-gray-400 leading-relaxed">${(pred.what_happens_if_you_buy || fund.what_happens_if_you_buy || {}).long_term || 'High probability of compounding returns outpacing traditional fixed income.'}</p>
+                                </div>
+                            </div>
+                            <div class="mt-3 p-2.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-xs text-teal-200 flex items-center gap-2">
+                                <i class="fas fa-bullseye text-teal-400 flex-shrink-0"></i>
+                                <span><strong>Recommended Action:</strong> ${(pred.what_happens_if_you_buy || fund.what_happens_if_you_buy || {}).action || 'Suitable for monthly SIP investment.'}</span>
+                            </div>
+                        </div>
+
+                        <!-- Target Predictions -->
+                        <div class="glass-card p-5">
+                            <h3 class="text-sm font-bold text-gray-200 mb-3 flex items-center gap-2">
+                                <i class="fas fa-bullseye text-teal-400"></i> AI Target NAV Projections
+                            </h3>
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div class="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl">
+                                    <span class="text-[0.7rem] text-gray-400 font-medium">30 Days Target</span>
+                                    <div class="text-base font-bold font-mono text-teal-300 mt-1">₹${pred.projected_targets['30_days'].nav}</div>
+                                    <span class="text-[0.65rem] text-emerald-400 font-semibold">+${pred.projected_targets['30_days'].gain_pct}%</span>
+                                </div>
+                                <div class="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl">
+                                    <span class="text-[0.7rem] text-gray-400 font-medium">90 Days Target</span>
+                                    <div class="text-base font-bold font-mono text-teal-300 mt-1">₹${pred.projected_targets['90_days'].nav}</div>
+                                    <span class="text-[0.65rem] text-emerald-400 font-semibold">+${pred.projected_targets['90_days'].gain_pct}%</span>
+                                </div>
+                                <div class="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl">
+                                    <span class="text-[0.7rem] text-gray-400 font-medium">1 Year Target</span>
+                                    <div class="text-base font-bold font-mono text-teal-300 mt-1">₹${pred.projected_targets['1_year'].nav}</div>
+                                    <span class="text-[0.65rem] text-emerald-400 font-semibold">+${pred.projected_targets['1_year'].gain_pct}%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Portfolio Holdings & Smart SIP Breakdown -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Holdings -->
+                            <div class="glass-card p-4">
+                                <h3 class="text-xs font-bold text-gray-300 mb-3 flex items-center justify-between">
+                                    <span><i class="fas fa-layer-group text-teal-400 mr-1.5"></i>Top 5 Stock Holdings</span>
+                                    <span class="text-[0.65rem] text-gray-500 font-normal">Weight %</span>
+                                </h3>
+                                <div class="space-y-1">${holdingsHTML}</div>
+                            </div>
+
+                            <!-- Smart SIP Simulator -->
+                            <div class="glass-card p-4">
+                                <h3 class="text-xs font-bold text-gray-300 mb-3"><i class="fas fa-calculator text-teal-400 mr-1.5"></i>3-Year Smart SIP Projection</h3>
+                                <div class="space-y-2 text-xs">
+                                    <div class="flex justify-between py-1 border-b border-white/[0.04]"><span class="text-gray-400">Monthly SIP Investment:</span><span class="font-mono text-gray-200">₹${sipAnalysis.monthly_amount.toLocaleString('en-IN')}</span></div>
+                                    <div class="flex justify-between py-1 border-b border-white/[0.04]"><span class="text-gray-400">Total Invested (3 Years):</span><span class="font-mono text-gray-200">₹${sipAnalysis.total_invested.toLocaleString('en-IN')}</span></div>
+                                    <div class="flex justify-between py-1 border-b border-white/[0.04]"><span class="text-gray-400">Projected Portfolio Value:</span><span class="font-mono font-bold text-teal-300">₹${sipAnalysis.projected_value.toLocaleString('en-IN')}</span></div>
+                                    <div class="flex justify-between py-1"><span class="text-gray-400">Estimated Profit:</span><span class="font-mono font-bold text-emerald-400">+₹${sipAnalysis.total_returns.toLocaleString('en-IN')} (+${sipAnalysis.absolute_return_pct}%)</span></div>
+                                </div>
+                                <div class="mt-3 p-2.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-[0.65rem] text-teal-300">
+                                    <i class="fas fa-lightbulb mr-1"></i> <strong>Smart SIP Recommendation:</strong> ${pred.smart_sip_insights.optimal_buy_date}. Benchmark Alpha: ${pred.smart_sip_insights.alpha_forecast}.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                console.error("Error opening MF AI analysis:", e);
+                content.innerHTML = `<div class="p-6 text-center text-rose-400 font-medium">Failed to load analysis.</div>`;
+            }
+        }
+
         /* ═══════════════════ DATA LOADING ═══════════════════ */
         async function loadInitialData() {
             try {
@@ -1507,19 +1944,134 @@ let currentChartType = 'candle';
             }
         }
 
+        /* ═══════════════════ INDEX CONFIG & DYNAMIC GRID ═══════════════════ */
+        const INDEX_CONFIGS = {
+            'NIFTY_50': { name: 'NIFTY 50', exchange: 'NSE', category: 'Benchmark', tagClass: 'tag-emerald', cardClass: 'card-emerald' },
+            'SENSEX': { name: 'SENSEX', exchange: 'BSE', category: 'Benchmark', tagClass: 'tag-blue', cardClass: 'card-blue' },
+            'NIFTY_NEXT_50': { name: 'NIFTY Next 50', exchange: 'NSE', category: 'Benchmark', tagClass: 'tag-teal', cardClass: 'card-emerald' },
+            'NIFTY_MIDCAP_50': { name: 'NIFTY Midcap 50', exchange: 'NSE', category: 'Benchmark', tagClass: 'tag-indigo', cardClass: 'card-purple' },
+            'NIFTY_500': { name: 'NIFTY 500', exchange: 'NSE', category: 'Benchmark', tagClass: 'tag-blue', cardClass: 'card-blue' },
+            'BANK_NIFTY': { name: 'BANK NIFTY', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-purple', cardClass: 'card-purple' },
+            'NIFTY_IT': { name: 'NIFTY IT', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-sky', cardClass: 'card-blue' },
+            'NIFTY_PHARMA': { name: 'NIFTY Pharma', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-rose', cardClass: 'card-purple' },
+            'NIFTY_AUTO': { name: 'NIFTY Auto', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-amber', cardClass: 'card-emerald' },
+            'NIFTY_FMCG': { name: 'NIFTY FMCG', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-lime', cardClass: 'card-emerald' },
+            'NIFTY_METAL': { name: 'NIFTY Metal', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-orange', cardClass: 'card-blue' },
+            'NIFTY_REALTY': { name: 'NIFTY Realty', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-emerald', cardClass: 'card-emerald' },
+            'NIFTY_ENERGY': { name: 'NIFTY Energy', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-yellow', cardClass: 'card-purple' },
+            'NIFTY_PSU_BANK': { name: 'NIFTY PSU Bank', exchange: 'NSE', category: 'Sectoral', tagClass: 'tag-violet', cardClass: 'card-purple' },
+            'FINNIFTY': { name: 'FINNIFTY', exchange: 'NSE', category: 'Derivatives', tagClass: 'tag-purple', cardClass: 'card-purple' },
+            'MIDCPNIFTY': { name: 'MIDCPNIFTY', exchange: 'NSE', category: 'Derivatives', tagClass: 'tag-indigo', cardClass: 'card-blue' },
+            'INDIA_VIX': { name: 'India VIX', exchange: 'NSE', category: 'Derivatives', tagClass: 'tag-red', cardClass: 'card-blue' },
+            'S_AND_P_500': { name: 'S&P 500', exchange: 'US', category: 'Global', tagClass: 'tag-blue', cardClass: 'card-blue' },
+            'NASDAQ': { name: 'NASDAQ Composite', exchange: 'US', category: 'Global', tagClass: 'tag-purple', cardClass: 'card-purple' },
+            'DOW_JONES': { name: 'Dow Jones', exchange: 'US', category: 'Global', tagClass: 'tag-emerald', cardClass: 'card-emerald' }
+        };
+
+        let currentIndexCategory = 'all';
+        let indicesData = {};
+
+        function setIndexCategory(cat) {
+            currentIndexCategory = cat;
+            const categories = ['all', 'Benchmark', 'Sectoral', 'Derivatives', 'Global'];
+            categories.forEach(c => {
+                const btn = document.getElementById('idx-cat-' + c);
+                if (btn) {
+                    if (c === cat) {
+                        btn.className = 'px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                    } else {
+                        btn.className = 'px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white';
+                    }
+                }
+            });
+            renderIndicesGrid();
+        }
+
+        function selectIndexSymbol(sym) {
+            currentChartSymbol = sym;
+            const selectEl = document.getElementById('chart-symbol-select');
+            const histSelectEl = document.getElementById('historical-symbol-select');
+            if (selectEl) selectEl.value = sym;
+            if (histSelectEl) histSelectEl.value = sym;
+            switchChartSymbol();
+            loadHistoricalData();
+            scrollToChart();
+        }
+
+        function renderIndicesGrid() {
+            const grid = document.getElementById('market-cards-grid');
+            if (!grid) return;
+
+            const symbols = Object.keys(INDEX_CONFIGS).filter(s => {
+                if (currentIndexCategory === 'all') return true;
+                return INDEX_CONFIGS[s].category === currentIndexCategory;
+            });
+
+            let html = '';
+            symbols.forEach(sym => {
+                const cfg = INDEX_CONFIGS[sym];
+                const d = indicesData[sym] || {};
+                const price = Number(d.price);
+                const priceStr = isNaN(price) ? '--' : (cfg.exchange === 'US' ? '$' : '₹') + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                const ch = Number(d.change) || 0;
+                const pct = Number(d.change_percent) || 0;
+                const changeClass = ch >= 0 ? 'profit' : 'loss';
+                const changeArrow = ch >= 0 ? '▲' : '▼';
+                const changeStr = isNaN(price) ? '--' : `${changeArrow} ${Math.abs(ch).toFixed(2)} (${Math.abs(pct).toFixed(2)}%)`;
+                const highStr = d.high !== undefined ? (cfg.exchange === 'US' ? '$' : '₹') + Number(d.high).toLocaleString('en-IN', {maximumFractionDigits:2}) : '--';
+                const lowStr = d.low !== undefined ? (cfg.exchange === 'US' ? '$' : '₹') + Number(d.low).toLocaleString('en-IN', {maximumFractionDigits:2}) : '--';
+                const volStr = d.volume !== undefined ? Number(d.volume).toLocaleString('en-IN') : '--';
+                const timeStr = d.updated || d.timestamp || '--:--';
+                const prefix = sym === 'NIFTY_50' ? 'nifty' : sym === 'BANK_NIFTY' ? 'banknifty' : sym === 'SENSEX' ? 'sensex' : null;
+                const cardId = prefix ? `${prefix}-card` : `card-${sym.toLowerCase()}`;
+
+                html += `
+                    <div id="${cardId}" class="glass-card ${cfg.cardClass} p-4 sm:p-5 cursor-pointer transition-all duration-300 hover:shadow-emerald-500/20" onclick="selectIndexSymbol('${sym}')">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h2 class="text-[1.05rem] font-bold tracking-tight">${cfg.name}</h2>
+                                <p class="text-[0.7rem] text-gray-500">${cfg.exchange} · ${cfg.category}</p>
+                            </div>
+                            <span class="tag ${cfg.tagClass}">${cfg.exchange}</span>
+                        </div>
+                        <div class="flex justify-between items-end mb-4">
+                            <div>
+                                <div id="${prefix ? prefix + '-price' : 'price-' + sym}" class="text-[1.7rem] font-extrabold tracking-tight price-value">${priceStr}</div>
+                                <div id="${prefix ? prefix + '-change' : 'change-' + sym}" class="text-sm font-semibold mt-0.5 ${changeClass}">${changeStr}</div>
+                            </div>
+                            <div id="${prefix ? prefix + '-prediction' : 'pred-' + sym}" class="pill-hold px-3 py-1 rounded-full text-xs font-bold">${d.prediction || 'HOLD'}</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                            <div class="flex justify-between"><span class="text-gray-500">High</span><span id="${prefix ? prefix + '-high' : 'high-' + sym}" class="font-medium">${highStr}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Low</span><span id="${prefix ? prefix + '-low' : 'low-' + sym}" class="font-medium">${lowStr}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Volume</span><span id="${prefix ? prefix + '-volume' : 'vol-' + sym}" class="font-medium">${volStr}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Updated</span><span id="${prefix ? prefix + '-time' : 'time-' + sym}" class="font-medium mono" style="font-size:0.7rem">${timeStr}</span></div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            grid.innerHTML = html;
+        }
+
         /* ═══════════════════ WEBSOCKET ═══════════════════ */
+        let socketInitAttempts = 0;
         function connectWebSocket() {
             try {
                 if (typeof io === 'undefined') {
-                    console.warn('Socket.IO not loaded yet, retrying in 2s...');
-                    setTimeout(connectWebSocket, 2000);
+                    socketInitAttempts++;
+                    if (socketInitAttempts <= 5) {
+                        console.warn('Socket.IO not loaded yet, retrying in 2s... (attempt ' + socketInitAttempts + ')');
+                        setTimeout(connectWebSocket, 2000);
+                    }
                     return;
                 }
+                if (socket && socket.connected) return;
                 socket = io();
                 socket.on('connect', () => {
                     console.log('✅ WebSocket connected');
                     reconnectAttempts = 0;
-                    ['NIFTY_50','BANK_NIFTY','SENSEX'].forEach(s => {
+                    Object.keys(INDEX_CONFIGS).forEach(s => {
                         socket.emit('subscribe_market', {symbol: s});
                         socket.emit('subscribe_tick_stream', {symbol: s});
                     });
@@ -1537,15 +2089,20 @@ let currentChartType = 'candle';
             }
         }
         function updateMarketCard(d) {
-            if (!['NIFTY_50', 'BANK_NIFTY', 'SENSEX'].includes(d.symbol)) {
+            if (!d || !d.symbol) return;
+            if (INDEX_CONFIGS[d.symbol] || ['NIFTY_50', 'BANK_NIFTY', 'SENSEX'].includes(d.symbol)) {
+                indicesData[d.symbol] = d;
+                const prefix = d.symbol === 'NIFTY_50' ? 'nifty' : d.symbol === 'BANK_NIFTY' ? 'banknifty' : d.symbol === 'SENSEX' ? 'sensex' : null;
+                const priceEl = document.getElementById(prefix ? prefix + '-price' : 'price-' + d.symbol);
+                if (priceEl) {
+                    if (prefix) updateCard(prefix, d);
+                    else updateIndexCardDOM(d.symbol, d);
+                } else {
+                    renderIndicesGrid();
+                }
+            } else {
                 updateStockCard(d);
-                return;
             }
-            const prefix = d.symbol === 'NIFTY_50' ? 'nifty' : d.symbol === 'BANK_NIFTY' ? 'banknifty' : 'sensex';
-            updateCard(prefix, d);
-            // Flash effect
-            const card = document.getElementById(prefix + '-card');
-            if (card) { card.classList.add('data-flash'); setTimeout(() => card.classList.remove('data-flash'), 600); }
         }
 
         function updateStockCard(d) {
@@ -1557,21 +2114,91 @@ let currentChartType = 'candle';
                 stocksData[stockIndex].change_percent = d.change_percent;
                 if (d.volume !== undefined) stocksData[stockIndex].volume = d.volume;
                 
-                // Debounce rendering slightly to avoid thrashing if many ticks arrive at once
-                if (!window._stockRenderTimer) {
-                    window._stockRenderTimer = setTimeout(() => {
-                        renderStocksGrid();
-                        window._stockRenderTimer = null;
-                    }, 500);
+                const priceEl = document.getElementById('stock-price-' + d.symbol);
+                const changeEl = document.getElementById('stock-change-' + d.symbol);
+                if (priceEl && changeEl) {
+                    const isUp = d.change >= 0;
+                    const changeSign = isUp ? '▲' : '▼';
+                    const changeClass = isUp ? 'profit' : 'loss';
+                    const formattedPrice = '₹' + Number(d.price).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    
+                    animatePrice(priceEl, formattedPrice);
+                    changeEl.textContent = `${changeSign} ${Math.abs(d.change).toFixed(2)} (${d.change_percent.toFixed(2)}%)`;
+                    changeEl.className = `text-[0.7rem] font-semibold ${changeClass} mt-0.5`;
+                } else {
+                    if (!window._stockRenderTimer) {
+                        window._stockRenderTimer = setTimeout(() => {
+                            renderStocksGrid();
+                            window._stockRenderTimer = null;
+                        }, 500);
+                    }
                 }
+            }
+        }
+
+        function updateIndexCardDOM(sym, data) {
+            if (!data) return;
+            const price = Number(data.price);
+            if (isNaN(price)) return;
+            const cfg = INDEX_CONFIGS[sym] || {};
+            const currSym = cfg.exchange === 'US' ? '$' : '₹';
+
+            const el = (id) => document.getElementById(id);
+            const priceEl = el('price-' + sym);
+            if (priceEl) {
+                const priceStr = currSym + price.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+                animatePrice(priceEl, priceStr);
+            }
+
+            const ch = Number(data.change) || 0;
+            const pct = Number(data.change_percent) || 0;
+            const changeEl = el('change-' + sym);
+            if (changeEl) {
+                changeEl.textContent = (ch >= 0 ? '▲' : '▼') + ' ' + Math.abs(ch).toFixed(2) + '  (' + Math.abs(pct).toFixed(2) + '%)';
+                changeEl.className = 'text-sm font-semibold mt-0.5 ' + (ch >= 0 ? 'profit' : 'loss');
+            }
+
+            if (data.high !== undefined) {
+                const hEl = el('high-' + sym);
+                if (hEl) hEl.textContent = currSym + (Number(data.high) || 0).toLocaleString('en-IN', {maximumFractionDigits:2});
+            }
+            if (data.low !== undefined) {
+                const lEl = el('low-' + sym);
+                if (lEl) lEl.textContent = currSym + (Number(data.low) || 0).toLocaleString('en-IN', {maximumFractionDigits:2});
+            }
+            if (data.volume !== undefined) {
+                const vEl = el('vol-' + sym);
+                if (vEl) vEl.textContent = (Number(data.volume) || 0).toLocaleString('en-IN');
+            }
+            if (data.updated || data.timestamp) {
+                const tEl = el('time-' + sym);
+                if (tEl) tEl.textContent = data.updated || data.timestamp;
             }
         }
 
         /* ═══════════════════ CARD UPDATES ═══════════════════ */
         function updateMarketCards(data) {
-            if (data.NIFTY_50)   updateCard('nifty', data.NIFTY_50);
-            if (data.BANK_NIFTY) updateCard('banknifty', data.BANK_NIFTY);
-            if (data.SENSEX)     updateCard('sensex', data.SENSEX);
+            if (!data) return;
+            const md = data.market_data || data;
+            let needsGridRender = false;
+            
+            Object.keys(md).forEach(s => {
+                if (INDEX_CONFIGS[s] || ['NIFTY_50', 'BANK_NIFTY', 'SENSEX'].includes(s)) {
+                    indicesData[s] = md[s];
+                    const prefix = s === 'NIFTY_50' ? 'nifty' : s === 'BANK_NIFTY' ? 'banknifty' : s === 'SENSEX' ? 'sensex' : null;
+                    const priceEl = document.getElementById(prefix ? prefix + '-price' : 'price-' + s);
+                    if (priceEl) {
+                        if (prefix) updateCard(prefix, md[s]);
+                        else updateIndexCardDOM(s, md[s]);
+                    } else {
+                        needsGridRender = true;
+                    }
+                }
+            });
+
+            if (needsGridRender) {
+                renderIndicesGrid();
+            }
         }
 
         function updateCard(prefix, data) {
@@ -1751,10 +2378,15 @@ let currentChartType = 'candle';
                     renderCandlestick(data);
                 } else {
                     console.warn('Plotly not loaded yet, waiting...');
+                    let plotlyAttempts = 0;
                     var plotlyWait = setInterval(function() {
+                        plotlyAttempts++;
                         if (typeof Plotly !== 'undefined') {
                             clearInterval(plotlyWait);
                             renderCandlestick(data);
+                        } else if (plotlyAttempts > 10) {
+                            clearInterval(plotlyWait);
+                            console.warn('Plotly library unavailable');
                         }
                     }, 1000);
                 }
@@ -1762,9 +2394,7 @@ let currentChartType = 'candle';
                 if (info) info.textContent = (data.display_name||symbol) + ' · ' + (data.timeframe_label||timeframe) + ' · ' + (data.data_points||0) + ' candles';
             } catch(e) {
                 console.error('Candle load failed:', e);
-                container.innerHTML = '<div class="text-center text-gray-600"><i class="fas fa-triangle-exclamation text-2xl mb-2 opacity-40"></i><p class="text-sm">Chart data unavailable. Retrying…</p></div>';
-                // Auto-retry once after 3s
-                setTimeout(() => loadCandleData(symbol, timeframe), 3000);
+                container.innerHTML = '<div class="text-center text-gray-600 py-8"><i class="fas fa-triangle-exclamation text-2xl mb-2 opacity-40"></i><p class="text-sm">Chart data unavailable. Please refresh or try another symbol.</p></div>';
             }
         }
 
@@ -1786,13 +2416,23 @@ let currentChartType = 'candle';
             }
         }
 
+        function resetChartZoom() {
+            if (typeof Plotly !== 'undefined' && document.getElementById('live-chart')) {
+                Plotly.relayout('live-chart', {
+                    'xaxis.autorange': true,
+                    'yaxis.autorange': true
+                });
+            }
+        }
+
         function renderCandlestick(cd) {
             /* ── Groww-style ultra-clean candlestick chart ── */
             const datesX = cd.hover_dates || cd.dates;
+            const N = (cd.dates || []).length;
+            if (!N) return;
             
-            // Compute ticks to prevent overlapping while showing more dates
-            const N = cd.dates.length;
-            const step = Math.max(1, Math.ceil(N / 12)); // Target ~12 tick labels
+            // Compute ticks to prevent overlapping while showing dates neatly
+            const step = Math.max(1, Math.ceil(N / 10)); // Target ~10 tick labels
             const tickvals = [];
             const ticktext = [];
             for (let i = 0; i < N; i += step) {
@@ -1804,6 +2444,16 @@ let currentChartType = 'candle';
                 ticktext.push(cd.dates[N - 1]);
             }
 
+            // Calculate precise price bounds so candles fill vertical height properly
+            const validLows = (cd.low || []).filter(v => typeof v === 'number' && v > 0);
+            const validHighs = (cd.high || []).filter(v => typeof v === 'number' && v > 0);
+            const minLow = validLows.length ? Math.min(...validLows) : 100;
+            const maxHigh = validHighs.length ? Math.max(...validHighs) : 200;
+            const priceSpan = maxHigh - minLow || 10;
+            const yPadding = priceSpan * 0.12; // 12% top & bottom padding
+            const yMin = Math.floor(minLow - yPadding);
+            const yMax = Math.ceil(maxHigh + yPadding);
+
             let mainTrace;
             if (currentChartType === 'graph') {
                 mainTrace = {
@@ -1812,7 +2462,7 @@ let currentChartType = 'candle';
                     type: 'scatter',
                     mode: 'lines',
                     name: 'Price',
-                    line: { color: '#00d09c', width: 2 },
+                    line: { color: '#00d09c', width: 2.5 },
                     hovertemplate: 'Price: ₹%{y:.2f}<extra></extra>'
                 };
             } else {
@@ -1832,7 +2482,7 @@ let currentChartType = 'candle';
                         line: { color: '#eb5b3c', width: 1.5 },
                         fillcolor: '#eb5b3c',
                     },
-                    whiskerwidth: 0, /* Removes the horizontal caps on wicks for a clean look */
+                    whiskerwidth: 0, /* Removes horizontal caps on wicks for clean look */
                     hovertemplate: 
                         'Open:  ₹%{open:.2f}<br>' +
                         'High:  ₹%{high:.2f}<br>' +
@@ -1841,11 +2491,12 @@ let currentChartType = 'candle';
                 };
             }
 
-            /* Volume bars — Solid muted colors sitting at the very bottom */
-            const volColors = cd.close.map((c, i) =>
-                c >= (cd.open[i] || c)
-                    ? 'rgba(0, 208, 156, 0.25)'   /* muted green */
-                    : 'rgba(235, 91, 60, 0.25)'    /* muted red */
+            /* Volume bars — Solid muted colors sitting at bottom */
+            const maxVol = Math.max(...(cd.volume || [1])) || 1;
+            const volColors = (cd.close || []).map((c, i) =>
+                c >= ((cd.open || [])[i] || c)
+                    ? 'rgba(0, 208, 156, 0.22)'   /* muted green */
+                    : 'rgba(235, 91, 60, 0.22)'    /* muted red */
             );
             const volumeTrace = {
                 x: datesX,
@@ -1866,16 +2517,17 @@ let currentChartType = 'candle';
                 font: { color: '#9ca3af', family: 'Inter, sans-serif', size: 10 },
                 xaxis: {
                     title: '',
-                    showgrid: false, /* No vertical gridlines (Groww style) */
+                    showgrid: false,
                     showline: false,
                     zeroline: false,
                     tickmode: 'array',
                     tickvals: tickvals,
                     ticktext: ticktext,
-                    tickangle: 0, /* Straight labels, no rotation */
+                    tickangle: 0,
                     tickfont: { size: 10, color: '#6b7280' },
                     rangeslider: { visible: false },
                     type: 'category',
+                    autorange: true,
                     showspikes: true,
                     spikemode: 'across',
                     spikesnap: 'cursor',
@@ -1885,12 +2537,13 @@ let currentChartType = 'candle';
                 },
                 yaxis: {
                     title: '',
-                    gridcolor: 'rgba(255,255,255,0.03)', /* Very faint horizontal lines */
+                    gridcolor: 'rgba(255,255,255,0.03)',
                     showline: false,
                     zeroline: false,
                     tickfont: { size: 10, color: '#9ca3af' },
                     side: 'right',
                     tickformat: ',.2f',
+                    range: [yMin, yMax], // Dynamically fits price candles vertically!
                     showspikes: true,
                     spikemode: 'across',
                     spikesnap: 'cursor',
@@ -1905,9 +2558,9 @@ let currentChartType = 'candle';
                     showticklabels: false,
                     showline: false,
                     zeroline: false,
-                    range: [0, Math.max(...(cd.volume || [1])) * 6], /* Squeeze volume to the bottom 15% */
+                    range: [0, maxVol * 4.5], // Squeezes volume to bottom 20%
                 },
-                margin: { t: 15, r: 45, b: 25, l: 5 }, /* Extremely tight margins */
+                margin: { t: 15, r: 50, b: 25, l: 10 },
                 showlegend: false,
                 dragmode: 'pan',
                 hovermode: 'x unified',
@@ -1921,16 +2574,21 @@ let currentChartType = 'candle';
             const traces = [mainTrace, volumeTrace];
 
             Plotly.newPlot('live-chart', traces, layout, {
-                displayModeBar: false,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d', 'toImage'],
                 responsive: true,
-                scrollZoom: true,
+                scrollZoom: false, // Prevents violent trackpad/mouse-wheel over-zooming while scrolling page
             });
         }
 
 
         /* ═══════════════════ AI ANALYSIS MODAL ═══════════════════ */
         function openAIModal() {
-            showSymbolSelection();
+            // Auto-detect: if user is on stocks section, open stocks tab by default
+            const stocksSection = document.getElementById('stocks-section');
+            const isStocksView = stocksSection && stocksSection.style.display !== 'none';
+            showSymbolSelection(isStocksView ? 'stocks' : 'indices');
         }
         function closeAIModal() {
             document.getElementById('aiModal').classList.remove('active');
@@ -1941,33 +2599,159 @@ let currentChartType = 'candle';
             if (e.target === modal) closeAIModal();
         });
 
-        function showSymbolSelection() {
+        function openStockAIAnalysis(symbol) {
+            const modal = document.getElementById('aiModal');
+            modal.classList.add('active');
+            selectSymbol(symbol);
+        }
+
+        function showSymbolSelection(defaultTab) {
             const modal = document.getElementById('aiModal');
             const content = document.getElementById('ai-analysis-content');
+            const stocksConfig = window.__INDIAN_STOCKS_CONFIG__ || {};
+
+            // Sector colors for visual distinction
+            const sectorColors = {
+                'Energy': {bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.3)', text: '#facc15', icon: 'fa-bolt'},
+                'IT Services': {bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)', text: '#60a5fa', icon: 'fa-microchip'},
+                'Banking': {bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)', text: '#34d399', icon: 'fa-building-columns'},
+                'FMCG': {bg: 'rgba(244,114,182,0.12)', border: 'rgba(244,114,182,0.3)', text: '#f472b6', icon: 'fa-basket-shopping'},
+                'Telecom': {bg: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)', text: '#a78bfa', icon: 'fa-tower-cell'},
+                'Infrastructure': {bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.3)', text: '#fb923c', icon: 'fa-building'},
+                'Finance': {bg: 'rgba(45,212,191,0.12)', border: 'rgba(45,212,191,0.3)', text: '#2dd4bf', icon: 'fa-coins'},
+                'Automotive': {bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)', text: '#f87171', icon: 'fa-car'},
+                'Metals': {bg: 'rgba(156,163,175,0.12)', border: 'rgba(156,163,175,0.3)', text: '#9ca3af', icon: 'fa-hammer'},
+                'Pharmaceuticals': {bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.3)', text: '#34d399', icon: 'fa-pills'},
+                'Conglomerate': {bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)', text: '#fbbf24', icon: 'fa-layer-group'},
+                'Power Transmission': {bg: 'rgba(96,165,250,0.12)', border: 'rgba(96,165,250,0.3)', text: '#60a5fa', icon: 'fa-plug'}
+            };
+            const defaultSector = {bg: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)', text: '#a78bfa', icon: 'fa-chart-line'};
+
+            // Build stock cards HTML
+            let stockCardsHTML = '';
+            for (const [key, cfg] of Object.entries(stocksConfig)) {
+                const sc = sectorColors[cfg.sector] || defaultSector;
+                stockCardsHTML += `
+                    <button onclick="selectSymbol('${key}')" class="ai-stock-pick glass-card p-3 text-left cursor-pointer hover:scale-[1.03] transition-all duration-200" style="border:1px solid ${sc.border}" data-search="${cfg.display_name.toLowerCase()} ${key.toLowerCase()} ${cfg.sector.toLowerCase()} ${cfg.name.toLowerCase()}">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${sc.bg};border:1px solid ${sc.border};">
+                                <i class="fas ${sc.icon} text-[0.6rem]" style="color:${sc.text}"></i>
+                            </div>
+                            <div class="truncate">
+                                <div class="text-sm font-bold truncate" style="color:${sc.text}">${cfg.display_name}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[0.6rem] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono leading-none" style="background:rgba(255,255,255,0.04);color:#9ca3af;border:1px solid rgba(255,255,255,0.06);">${key}</span>
+                            <span class="text-[0.6rem] px-1.5 py-0.5 rounded-full" style="background:${sc.bg};color:${sc.text};border:1px solid ${sc.border};">${cfg.sector}</span>
+                        </div>
+                    </button>`;
+            }
+
+            // Build index cards HTML
+            let indexCardsHTML = '';
+            for (const [key, cfg] of Object.entries(INDEX_CONFIGS)) {
+                indexCardsHTML += `
+                    <button onclick="selectSymbol('${key}')" class="ai-stock-pick glass-card p-3 text-left cursor-pointer hover:scale-[1.03] transition-all duration-200" style="border:1px solid rgba(255,255,255,0.08)">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/10 border border-blue-500/20">
+                                <i class="fas fa-chart-line text-[0.6rem] text-blue-400"></i>
+                            </div>
+                            <div class="truncate">
+                                <div class="text-sm font-bold truncate text-white">${cfg.name}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[0.6rem] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono leading-none bg-white/[0.04] text-gray-400 border border-white/[0.06]">${cfg.exchange}</span>
+                            <span class="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">${cfg.category}</span>
+                        </div>
+                    </button>`;
+            }
+
+            const activeTab = defaultTab || 'indices';
+            const indicesActive = activeTab === 'indices';
+
             content.innerHTML = `
-                <div class="text-center mb-6">
-                    <h3 class="text-lg font-bold mb-2">Select Index for Analysis</h3>
-                    <p class="text-xs text-gray-500">AI-powered technical analysis with predictions</p>
+                <div class="text-center mb-5">
+                    <h3 class="text-lg font-bold mb-1">Select for AI Analysis</h3>
+                    <p class="text-xs text-gray-500">AI-powered analysis with BUY/SELL/HOLD recommendations & news</p>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                    <button onclick="selectSymbol('NIFTY_50')" class="glass-card card-blue p-4 text-center cursor-pointer hover:scale-105 transition-transform" style="border:1px solid rgba(88,166,255,0.2)">
-                        <div class="text-lg font-bold" style="color:var(--accent-blue)">NIFTY 50</div>
-                        <div class="text-[0.7rem] text-gray-500 mt-1">NSE Index</div>
+
+                <!-- Tab Switcher -->
+                <div class="flex rounded-xl bg-white/[0.03] border border-white/[0.06] p-1 mb-5">
+                    <button onclick="switchAITab('indices')" id="ai-tab-indices" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${indicesActive ? 'bg-gradient-to-r from-blue-600/80 to-cyan-600/80 text-white shadow-lg' : 'text-gray-400 hover:text-white'}">
+                        <i class="fas fa-chart-line text-xs"></i> Indices
                     </button>
-                    <button onclick="selectSymbol('BANK_NIFTY')" class="glass-card card-purple p-4 text-center cursor-pointer hover:scale-105 transition-transform" style="border:1px solid rgba(188,140,255,0.2)">
-                        <div class="text-lg font-bold" style="color:var(--accent-purple)">BANK NIFTY</div>
-                        <div class="text-[0.7rem] text-gray-500 mt-1">NSE Banking</div>
-                    </button>
-                    <button onclick="selectSymbol('SENSEX')" class="glass-card card-emerald p-4 text-center cursor-pointer hover:scale-105 transition-transform" style="border:1px solid rgba(63,185,80,0.2)">
-                        <div class="text-lg font-bold" style="color:var(--accent-emerald)">SENSEX</div>
-                        <div class="text-[0.7rem] text-gray-500 mt-1">BSE Index</div>
+                    <button onclick="switchAITab('stocks')" id="ai-tab-stocks" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${!indicesActive ? 'bg-gradient-to-r from-purple-600/80 to-pink-600/80 text-white shadow-lg' : 'text-gray-400 hover:text-white'}">
+                        <i class="fas fa-building text-xs"></i> Stocks
                     </button>
                 </div>
+
+                <!-- Indices Panel -->
+                <div id="ai-panel-indices" style="display:${indicesActive ? 'block' : 'none'}">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" style="max-height:45vh;overflow-y:auto;padding-right:4px;">
+                        ${indexCardsHTML}
+                    </div>
+                </div>
+
+                <!-- Stocks Panel -->
+                <div id="ai-panel-stocks" style="display:${!indicesActive ? 'block' : 'none'}">
+                    <div class="relative mb-4">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+                        <input type="text" id="ai-stock-search" placeholder="Search stocks by name, symbol, or sector..." oninput="filterAIStocks(this.value)" class="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all duration-200 outline-none" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--text-primary);" onfocus="this.style.borderColor='rgba(139,92,246,0.5)';this.style.boxShadow='0 0 0 3px rgba(139,92,246,0.1)';" onblur="this.style.borderColor='rgba(255,255,255,0.08)';this.style.boxShadow='none';">
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" id="ai-stocks-grid" style="max-height:45vh;overflow-y:auto;padding-right:4px;">
+                        ${stockCardsHTML}
+                    </div>
+                    <div id="ai-stocks-empty" class="hidden text-center py-6">
+                        <div class="text-2xl mb-2">🔍</div>
+                        <p class="text-sm text-gray-500">No stocks match your search</p>
+                    </div>
+                </div>
+
                 <div class="text-center">
                     <button onclick="closeAIModal()" class="btn btn-ghost text-xs">Cancel</button>
                 </div>
             `;
             modal.classList.add('active');
+        }
+
+        function switchAITab(tab) {
+            const indicesPanel = document.getElementById('ai-panel-indices');
+            const stocksPanel = document.getElementById('ai-panel-stocks');
+            const indicesTab = document.getElementById('ai-tab-indices');
+            const stocksTab = document.getElementById('ai-tab-stocks');
+            if (!indicesPanel || !stocksPanel) return;
+
+            if (tab === 'indices') {
+                indicesPanel.style.display = 'block';
+                stocksPanel.style.display = 'none';
+                indicesTab.className = 'flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-600/80 to-cyan-600/80 text-white shadow-lg';
+                stocksTab.className = 'flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 text-gray-400 hover:text-white';
+            } else {
+                indicesPanel.style.display = 'none';
+                stocksPanel.style.display = 'block';
+                indicesTab.className = 'flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 text-gray-400 hover:text-white';
+                stocksTab.className = 'flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-600/80 to-pink-600/80 text-white shadow-lg';
+                // Focus search
+                setTimeout(() => { const s = document.getElementById('ai-stock-search'); if(s) s.focus(); }, 100);
+            }
+        }
+
+        function filterAIStocks(query) {
+            const grid = document.getElementById('ai-stocks-grid');
+            const empty = document.getElementById('ai-stocks-empty');
+            if (!grid) return;
+            const cards = grid.querySelectorAll('.ai-stock-pick');
+            const q = query.toLowerCase().trim();
+            let visible = 0;
+            cards.forEach(card => {
+                const searchData = card.dataset.search || '';
+                const show = !q || searchData.includes(q);
+                card.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            if (empty) empty.classList.toggle('hidden', visible > 0);
         }
 
         function startAIAnalysisLoader(symbol) {
@@ -2010,33 +2794,35 @@ let currentChartType = 'candle';
             modal.dataset.currentSymbol = symbol;
             startAIAnalysisLoader(symbol);
 
-            // Use a NEW AbortController for each request (fixes reuse bug)
+            // Use a NEW AbortController for each request (25s fast timeout)
             const fastController = new AbortController();
-            const fastTimeout = setTimeout(() => fastController.abort(), 5000);
+            const fastTimeout = setTimeout(() => fastController.abort(), 25000);
 
             apiFetch('/api/ai-analysis-fast/' + symbol, {signal: fastController.signal})
                 .then(r => { clearTimeout(fastTimeout); if (!r.ok) throw new Error('Fast failed'); return r.json(); })
                 .then(data => {
                     if (data.error) throw new Error(data.error);
                     displayDetailedAnalysis(data);
-                    // Background enhancement with SEPARATE controller
+                    // Background enhancement with SEPARATE controller (60s timeout)
                     const bgController = new AbortController();
-                    const bgTimeout = setTimeout(() => bgController.abort(), 15000);
+                    const bgTimeout = setTimeout(() => bgController.abort(), 60000);
                     apiFetch('/api/ai-analysis/' + symbol, {signal: bgController.signal})
                         .then(r => { clearTimeout(bgTimeout); return r.ok ? r.json() : null; })
                         .then(full => { if (full && !full.error && full.predictions) displayDetailedAnalysis(full); })
-                        .catch(() => {});
+                        .catch(err => { console.warn('Background enhancement skipped:', err); });
                 })
-                .catch(() => {
+                .catch(fastErr => {
                     clearTimeout(fastTimeout);
-                    // Fallback with NEW controller
+                    console.warn('Fast analysis failed/timed out, attempting full analysis fallback:', fastErr);
+                    // Fallback with NEW controller (60s timeout)
                     const fallbackController = new AbortController();
-                    const fallbackTimeout = setTimeout(() => fallbackController.abort(), 15000);
+                    const fallbackTimeout = setTimeout(() => fallbackController.abort(), 60000);
                     apiFetch('/api/ai-analysis/' + symbol, {signal: fallbackController.signal})
                         .then(r => { clearTimeout(fallbackTimeout); if (!r.ok) throw new Error('Full failed'); return r.json(); })
                         .then(data => { if (data.error) throw new Error(data.error); displayDetailedAnalysis(data); })
-                        .catch(() => {
+                        .catch(fullErr => {
                             clearTimeout(fallbackTimeout);
+                            console.error('All AI analysis attempts failed:', fullErr);
                             const content = document.getElementById('ai-analysis-content');
                             if(content) content.innerHTML = `<div class="text-center py-10"><div class="text-3xl mb-3">⚠️</div><p class="text-sm text-gray-400">Analysis failed. Please try again.</p><button onclick="selectSymbol('${symbol}')" class="btn btn-blue text-xs mt-4">Retry</button></div>`;
                         });
@@ -2044,35 +2830,37 @@ let currentChartType = 'candle';
         }
 
         function displayDetailedAnalysis(data) {
-            const content = document.getElementById('ai-analysis-content');
-            if (content && content.dataset.loaderInterval) {
-                clearInterval(Number(content.dataset.loaderInterval));
-                delete content.dataset.loaderInterval;
-            }
-            const p  = data.predictions || {};
-            const t  = data.technical_indicators || {};
-            const ai = data.ai_trading_suggestion || {};
-            const mi = data.market_intelligence || {};
-            const isRAG = data.rag_enhanced || false;
+            try {
+                const content = document.getElementById('ai-analysis-content');
+                if (content && content.dataset.loaderInterval) {
+                    clearInterval(Number(content.dataset.loaderInterval));
+                    delete content.dataset.loaderInterval;
+                }
+                const p  = data.predictions || {};
+                const t  = data.technical_indicators || {};
+                const ai = data.ai_trading_suggestion || {};
+                const mi = data.market_intelligence || {};
+                const isRAG = data.rag_enhanced || false;
 
-            // Data quality badge
-            const aq = p.analysis_quality || (p.is_fallback ? 'fallback' : 'full');
-            const qualityBadge = aq === 'full' ? '<span class="tag" style="background:rgba(16,185,129,0.15);color:#10b981;font-size:0.6rem;">✅ Full Analysis</span>'
-                : aq === 'partial' ? '<span class="tag" style="background:rgba(234,179,8,0.15);color:#eab308;font-size:0.6rem;">📊 Partial Analysis</span>'
-                : aq === 'limited' ? '<span class="tag" style="background:rgba(249,115,22,0.15);color:#f97316;font-size:0.6rem;">⚠️ Limited Data</span>'
-                : aq === 'fallback' || aq === 'error' ? '<span class="tag" style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:0.6rem;">❌ No Data</span>'
-                : '';
-            const dataPoints = p.data_points_used ? `<span class="text-gray-600" style="font-size:0.55rem;">${p.data_points_used} days analyzed</span>` : '';
+                // Data quality badge
+                const aq = p.analysis_quality || (p.is_fallback ? 'fallback' : 'full');
+                const qualityBadge = aq === 'full' ? '<span class="tag" style="background:rgba(16,185,129,0.15);color:#10b981;font-size:0.6rem;">✅ Full Analysis</span>'
+                    : aq === 'partial' ? '<span class="tag" style="background:rgba(234,179,8,0.15);color:#eab308;font-size:0.6rem;">📊 Partial Analysis</span>'
+                    : aq === 'limited' ? '<span class="tag" style="background:rgba(249,115,22,0.15);color:#f97316;font-size:0.6rem;">⚠️ Limited Data</span>'
+                    : aq === 'fallback' || aq === 'error' ? '<span class="tag" style="background:rgba(239,68,68,0.15);color:#ef4444;font-size:0.6rem;">❌ No Data</span>'
+                    : '';
+                const dataPoints = p.data_points_used ? `<span class="text-gray-600" style="font-size:0.55rem;">${p.data_points_used} days analyzed</span>` : '';
 
-            const safe = (v,d) => (v !== undefined && v !== null) ? v : (d !== undefined ? d : 0);
-            const safePct = (v) => { const n = Number(v); return isNaN(n) ? '0.0' : n.toFixed(1); };
-            const safeFixed = (v,d) => { const n = Number(v); return isNaN(n) ? (d||'0.00') : n.toFixed(2); };
+                const safe = (v,d) => (v !== undefined && v !== null) ? v : (d !== undefined ? d : 0);
+                const safePct = (v) => { const n = Number(v); return isNaN(n) ? '0.0' : n.toFixed(1); };
+                const safeFixed = (v,d) => { const n = Number(v); return isNaN(n) ? (d||'0.00') : n.toFixed(2); };
 
-            const recClass = (p.recommendation||'') === 'BUY CALL' ? 'profit' : (p.recommendation||'') === 'BUY PUT' ? 'loss' : 'text-gray-400';
-            const recIcon = (p.recommendation||'') === 'BUY CALL' ? '🟢' : (p.recommendation||'') === 'BUY PUT' ? '🔴' : '⚪';
+                const recClass = ['BUY CALL', 'BUY'].includes(p.recommendation||'') ? 'profit' : ['BUY PUT', 'SELL'].includes(p.recommendation||'') ? 'loss' : 'text-gray-400';
+                const recIcon = ['BUY CALL', 'BUY'].includes(p.recommendation||'') ? '🟢' : ['BUY PUT', 'SELL'].includes(p.recommendation||'') ? '🔴' : '⚪';
 
-            const currentSymbol = document.getElementById('aiModal').dataset.currentSymbol || '';
-            const showOCTab = ['NIFTY_50', 'BANK_NIFTY'].includes(currentSymbol);
+                const currentSymbol = document.getElementById('aiModal').dataset.currentSymbol || '';
+                const symbol = data.symbol || currentSymbol || '';
+                const showOCTab = ['NIFTY_50', 'BANK_NIFTY'].includes(symbol);
 
             content.innerHTML = `
                 ${showOCTab ? `
@@ -2083,12 +2871,15 @@ let currentChartType = 'candle';
                 <div id="oc-analysis-tab">
                 <div>
                     <div class="flex justify-between items-center mb-5">
-                        <h3 class="text-lg font-bold">${data.display_name || ''}</h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="showSymbolSelection()" class="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors text-gray-400 hover:text-white" title="Back to selection"><i class="fas fa-arrow-left text-xs"></i></button>
+                            <h3 class="text-lg font-bold">${data.display_name || ''}</h3>
+                        </div>
                         <div class="flex items-center gap-2 flex-wrap justify-end">
                             ${qualityBadge}
                             ${dataPoints}
                             ${isRAG ? '<span class="tag tag-purple">RAG Enhanced</span>' : ''}
-                            <span class="tag ${(ai.option_side||'') === 'CALL' ? 'tag-emerald' : (ai.option_side||'') === 'PUT' ? 'tag-red' : 'tag-amber'}">${ai.suggestion || p.option_side || 'HOLD'}</span>
+                            <span class="tag ${['CALL', 'BUY'].includes(ai.option_side||'') ? 'tag-emerald' : ['PUT', 'SELL'].includes(ai.option_side||'') ? 'tag-red' : 'tag-amber'}">${ai.suggestion || p.option_side || 'HOLD'}</span>
                         </div>
                     </div>
 
@@ -2114,6 +2905,61 @@ let currentChartType = 'candle';
                             <div class="h-2 rounded-full" style="width:${safe(p.confidence,0.5)*100}%;background:linear-gradient(90deg,#ef4444,#eab308,#22c55e);"></div>
                         </div>
                     </div>
+                    
+                    <!-- Execute Trade Button -->
+                    <div class="mb-4">
+                        <button onclick="executeTrade('${symbol}', '${p.recommendation || 'HOLD'}')" class="w-full py-3 rounded-xl font-bold text-sm transition-all shadow-lg hover:opacity-90 flex items-center justify-center gap-2" style="background:linear-gradient(45deg, #22c55e, #10b981); color:white; border:none; display:${['HOLD', 'hold', 'neutral'].includes((p.recommendation||'').toLowerCase()) ? 'none' : 'flex'};">
+                            ⚡ Execute 1-Click Trade on Dhan
+                        </button>
+                    </div>
+
+                    <!-- WHY THIS RECOMMENDATION — always visible -->
+                    <div class="p-4 rounded-xl mb-4" style="background:${['HOLD', 'hold'].includes(p.recommendation||'') ? 'rgba(234,179,8,0.05)' : ['BUY CALL', 'BUY'].includes(p.recommendation||'') ? 'rgba(16,185,129,0.05)' : 'rgba(248,81,73,0.05)'};border:1px solid ${['HOLD', 'hold'].includes(p.recommendation||'') ? 'rgba(234,179,8,0.15)' : ['BUY CALL', 'BUY'].includes(p.recommendation||'') ? 'rgba(16,185,129,0.15)' : 'rgba(248,81,73,0.15)'};">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span style="font-size:0.9rem;">${['HOLD', 'hold'].includes(p.recommendation||'') ? '📋' : ['BUY CALL', 'BUY'].includes(p.recommendation||'') ? '📈' : '📉'}</span>
+                            <div class="text-xs font-semibold" style="color:${['HOLD', 'hold'].includes(p.recommendation||'') ? '#eab308' : ['BUY CALL', 'BUY'].includes(p.recommendation||'') ? '#10b981' : '#ef4444'}">WHY ${p.recommendation || 'HOLD'}?</div>
+                        </div>
+                        ${ai.reasoning && ai.reasoning.length > 0 ? `
+                        <ul class="space-y-2">
+                            ${ai.reasoning.slice(0,5).map(r => `
+                                <li class="flex items-start gap-2 text-xs">
+                                    <span class="mt-0.5 shrink-0" style="color:${(p.recommendation||'HOLD')==='HOLD' ? '#eab308' : (p.recommendation||'')==='BUY CALL' ? '#10b981' : '#ef4444'}">▸</span>
+                                    <span class="text-gray-300 leading-relaxed">${r}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                        ` : `
+                        <p class="text-xs text-gray-400">The market is currently showing mixed signals. No strong directional conviction — holding is the safest approach until a clearer trend emerges.</p>
+                        `}
+                    </div>
+
+                    <!-- PRICE ANALYSIS - Why is price high/low -->
+                    ${(() => {
+                        const drivers = ai.price_drivers || [];
+                        if (drivers.length === 0) return '';
+                        const changePct = safe(data.market_data?.change_percent, 0);
+                        const isUp = changePct >= 0.5;
+                        const isDown = changePct <= -0.5;
+                        const priceColor = isUp ? '#10b981' : isDown ? '#ef4444' : '#eab308';
+                        const priceBg = isUp ? 'rgba(16,185,129,0.05)' : isDown ? 'rgba(248,81,73,0.05)' : 'rgba(234,179,8,0.05)';
+                        const priceBorder = isUp ? 'rgba(16,185,129,0.15)' : isDown ? 'rgba(248,81,73,0.15)' : 'rgba(234,179,8,0.15)';
+                        const priceIcon = isUp ? '📈' : isDown ? '📉' : '➡️';
+                        return `
+                        <div class="p-4 rounded-xl mb-4" style="background:${priceBg};border:1px solid ${priceBorder};">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span style="font-size:0.9rem;">${priceIcon}</span>
+                                <div class="text-xs font-semibold" style="color:${priceColor}">WHY IS THE PRICE ${isUp ? 'UP' : isDown ? 'DOWN' : 'FLAT'} TODAY?</div>
+                            </div>
+                            <ul class="space-y-2">
+                                ${drivers.slice(0,4).map(d => `
+                                    <li class="flex items-start gap-2 text-xs">
+                                        <span class="mt-0.5 shrink-0" style="color:${priceColor}">&#9656;</span>
+                                        <span class="text-gray-300 leading-relaxed">${d}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>`;
+                    })()}
 
                     <!-- Probabilities -->
                     <div class="grid grid-cols-3 gap-2 mb-4">
@@ -2174,22 +3020,28 @@ let currentChartType = 'candle';
                         </div>
                     </div>
 
-                    <!-- News Sentiment Section -->
+                    <!-- News & Latest Updates Section — always visible -->
                     ${(() => {
                         const news = data.news_analysis || {};
                         const articles = news.articles || [];
-                        if (articles.length === 0) return '';
+                        const displayName = data.display_name || data.symbol || '';
                         return `
-                        <div class="p-4 rounded-xl mb-4" style="background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);">
+                        <div class="p-4 rounded-xl mb-4" style="background:rgba(59,130,246,0.04);border:1px solid rgba(59,130,246,0.12);">
                             <div class="flex justify-between items-center mb-3">
-                                <div class="text-xs text-gray-500 font-semibold">MARKET NEWS & SENTIMENT</div>
+                                <div class="flex items-center gap-2">
+                                    <span style="font-size:0.85rem;">📰</span>
+                                    <div class="text-xs text-blue-400 font-semibold">LATEST NEWS & UPDATES</div>
+                                </div>
+                                ${articles.length > 0 ? `
                                 <span class="tag ${news.news_sentiment_label === 'Bullish' ? 'tag-emerald' : news.news_sentiment_label === 'Bearish' ? 'tag-red' : 'tag-amber'}">
                                     ${news.news_sentiment_label === 'Bullish' ? '🐂 Bullish' : news.news_sentiment_label === 'Bearish' ? '🐻 Bearish' : '😐 Neutral'} (${news.news_sentiment_score > 0 ? '+' : ''}${safePct(news.news_sentiment_score)})
                                 </span>
+                                ` : ''}
                             </div>
+                            ${articles.length > 0 ? `
                             <div class="space-y-3">
                                 ${articles.map(art => `
-                                    <div class="p-2.5 rounded-lg text-xs" style="background:rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03);">
+                                    <div class="p-2.5 rounded-lg text-xs" style="background:rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);">
                                         <div class="flex justify-between items-start gap-2 mb-1.5">
                                             <a href="${art.url}" target="_blank" class="font-semibold text-blue-400 hover:text-blue-300 transition-colors leading-tight" style="word-break: break-word; text-align: left; display: block;">
                                                 ${art.title}
@@ -2198,6 +3050,7 @@ let currentChartType = 'candle';
                                                 ${art.label}
                                             </span>
                                         </div>
+                                        ${art.description ? `<p class="text-[0.65rem] text-gray-400 mb-1.5 leading-relaxed" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${art.description}</p>` : ''}
                                         <div class="text-[0.65rem] text-gray-500 flex justify-between">
                                             <span>${art.source}</span>
                                             <span>${art.published_at}</span>
@@ -2205,16 +3058,17 @@ let currentChartType = 'candle';
                                     </div>
                                 `).join('')}
                             </div>
+                            ` : `
+                            <div class="text-center py-4">
+                                <div class="text-2xl mb-2">📭</div>
+                                <p class="text-xs text-gray-400 mb-1">No recent news articles found for <strong class="text-gray-300">${displayName}</strong></p>
+                                <p class="text-[0.65rem] text-gray-500">News data updates periodically. Try again later or check financial portals for the latest updates.</p>
+                            </div>
+                            `}
                         </div>
                         `;
                     })()}
 
-                    ${ai.reasoning && ai.reasoning.length > 0 ? `
-                    <div class="p-4 rounded-xl mb-4" style="background:rgba(139,92,246,0.04);border:1px solid rgba(139,92,246,0.12);">
-                        <div class="text-xs text-purple-400 mb-2 font-semibold">AI REASONING</div>
-                        <ul class="text-xs text-gray-400 space-y-1">${ai.reasoning.slice(0,4).map(r => '<li>• ' + r + '</li>').join('')}</ul>
-                    </div>
-                    ` : ''}
 
                     ${data.key_points && data.key_points.length > 0 ? `
                     <div class="p-4 rounded-xl mb-4" style="background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);">
@@ -2238,6 +3092,13 @@ let currentChartType = 'candle';
                 </div><!-- end oc-analysis-tab -->
                 ${showOCTab ? `<div id="oc-chain-tab" style="display:none;"></div>` : ''}
             `;
+            } catch(err) {
+                console.error('Error rendering AI detailed analysis:', err);
+                const content = document.getElementById('ai-analysis-content');
+                if (content) {
+                    content.innerHTML = `<div class="text-center py-10"><div class="text-3xl mb-3">⚠️</div><p class="text-sm text-gray-400">Rendering error occurred. Please try again.</p><button onclick="selectSymbol('${data && data.symbol ? data.symbol : ''}')" class="btn btn-blue text-xs mt-4">Retry</button></div>`;
+                }
+            }
         }
 
         /* ═══════════════════ OPTIONS CHAIN ═══════════════════ */
@@ -3487,6 +4348,41 @@ LOGIN_TEMPLATE = r"""
             toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'}" style="margin-right:8px;"></i>${msg}`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3500);
+        }
+
+        /* ── Execute Trade (Dhan API) ── */
+        async function executeTrade(symbol, recommendation) {
+            const side = recommendation.includes('BUY') || recommendation.includes('CALL') ? 'BUY' : 'SELL';
+            
+            if(!confirm(`Are you sure you want to execute a ${side} order for ${symbol} on DhanHQ?`)) {
+                return;
+            }
+            
+            try {
+                showToast('Initiating trade on Dhan...', 'success');
+                const resp = await fetch('/api/execute-trade', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        side: side,
+                        quantity: 1, // Default to 1 lot/share for safety
+                        product_type: 'INTRADAY'
+                    })
+                });
+                
+                const data = await resp.json();
+                if(data.success) {
+                    showToast(`✅ Trade Executed! Order ID: ${data.data.order_id} (${data.data.mode})`, 'success');
+                } else {
+                    showToast(`❌ Trade Failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (e) {
+                showToast(`❌ Network Error: Could not connect to broker`, 'error');
+            }
         }
 
         /* ── Login Submit ── */

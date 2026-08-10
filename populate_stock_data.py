@@ -17,8 +17,25 @@ DB_PATH = "data/historical/indian_market_data.db"
 # Symbols to download
 SYMBOLS = {
     'NIFTY_50': '^NSEI',
-    'BANK_NIFTY': '^NSEBANK',
     'SENSEX': '^BSESN',
+    'NIFTY_NEXT_50': '^NIFTYNEXT50',
+    'NIFTY_MIDCAP_50': '^NSEMDCP50',
+    'NIFTY_500': '^CRSLDX',
+    'BANK_NIFTY': '^NSEBANK',
+    'NIFTY_IT': '^CNXIT',
+    'NIFTY_PHARMA': '^CNXPHARMA',
+    'NIFTY_AUTO': '^CNXAUTO',
+    'NIFTY_FMCG': '^CNXFMCG',
+    'NIFTY_METAL': '^CNXMETAL',
+    'NIFTY_REALTY': '^CNXREALTY',
+    'NIFTY_ENERGY': '^CNXENERGY',
+    'NIFTY_PSU_BANK': '^CNXPSUBANK',
+    'FINNIFTY': 'NIFTY_FIN_SERVICE.NS',
+    'MIDCPNIFTY': 'NIFTY_MID_SELECT.NS',
+    'INDIA_VIX': '^INDIAVIX',
+    'S_AND_P_500': '^GSPC',
+    'NASDAQ': '^IXIC',
+    'DOW_JONES': '^DJI',
 }
 
 def calculate_rsi(prices, period=14):
