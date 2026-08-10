@@ -239,15 +239,14 @@ _ALLOWED_ORIGINS = [
     'http://localhost:3000', 'http://127.0.0.1:3000',
     f"http://localhost:{os.environ.get('PORT', '5008')}",
     'https://agentic-ai-trader-y0xc.onrender.com',
+    'https://stock-market-prediction-green.vercel.app',
 ]
-# Add Vercel frontend URL
+# Add Vercel frontend URL from environment
 _frontend_url = os.environ.get('FRONTEND_URL', '')
-if _frontend_url:
+if _frontend_url and _frontend_url not in _ALLOWED_ORIGINS:
     _ALLOWED_ORIGINS.append(_frontend_url)
-if os.environ.get('RENDER'):
-    _ALLOWED_ORIGINS = '*'
 
-CORS(app, origins=_ALLOWED_ORIGINS, supports_credentials=True, allow_headers=['Content-Type', 'Authorization', 'X-CSRF-Token'])
+CORS(app, origins=_ALLOWED_ORIGINS, supports_credentials=True, allow_headers=['Content-Type', 'Authorization', 'X-CSRF-Token'], methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 # Auto-detect async mode: use 'eventlet' on Render (matching gunicorn --worker-class eventlet),
 # fall back to 'threading' for local development
 _async_mode = 'eventlet' if os.environ.get('RENDER') else 'threading'
