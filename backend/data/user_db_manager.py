@@ -186,10 +186,10 @@ class UserDBManager:
         conn = self._get_conn()
         try:
             cursor = conn.cursor()
-            # Query by username or email
+            # Query by username or email (case-insensitive)
             cursor.execute(
-                "SELECT id, username, password_hash, salt FROM users WHERE username = ? OR email = ?",
-                (val, val.lower())
+                "SELECT id, username, password_hash, salt FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)",
+                (val, val)
             )
             row = cursor.fetchone()
             

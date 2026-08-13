@@ -16,7 +16,10 @@ auth_bp = Blueprint('auth', __name__)
 JWT_EXPIRY_HOURS = 720  # 30 days
 
 def get_jwt_secret():
-    return os.environ.get('JWT_SECRET', current_app.config.get('SECRET_KEY', 'dev-jwt-secret'))
+    secret = os.environ.get('JWT_SECRET') or current_app.config.get('SECRET_KEY') or os.environ.get('SECRET_KEY')
+    if not secret:
+        secret = 'dev-jwt-secret-key-change-in-production-12345'
+    return secret
 
 def generate_jwt(user_id, username):
     payload = {
@@ -136,17 +139,18 @@ def auth_status():
     auth_header = request.headers.get('Authorization')
     if auth_header and auth_header.startswith('Bearer '):
         token = auth_header.split(' ')[1]
-        try:
-            payload = jwt.decode(token, get_jwt_secret(), algorithms=['HS256'])
-            return jsonify({
-                'logged_in': True,
-                'user_id': payload.get('user_id'),
-                'username': payload.get('username')
-            })
-        except jwt.ExpiredSignatureError:
-            return jsonify({'logged_in': False, 'message': 'Token expired'})
-        except jwt.InvalidTokenError:
-            return jsonify({'logged_in': False, 'message': 'Invalid token'})
+        if token and token not in ('null', 'undefined', 'None'):
+            try:
+                payload = jwt.decode(token, get_jwt_secret(), algorithms=['HS256'])
+                return jsonify({
+                    'logged_in': True,
+                    'user_id': payload.get('user_id'),
+                    'username': payload.get('username')
+                })
+            except jwt.ExpiredSignatureError:
+                return jsonify({'logged_in': False, 'message': 'Token expired'})
+            except jwt.InvalidTokenError:
+                return jsonify({'logged_in': False, 'message': 'Invalid token'})
 
     # Fallback to session
     user_id = _get_current_user_id()

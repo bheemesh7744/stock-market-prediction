@@ -7,7 +7,7 @@ All Flask routes, WebSocket handlers, and the main() entry point.
 import os
 from datetime import datetime
 
-from flask import jsonify
+from flask import jsonify, send_file, send_from_directory, redirect, session
 
 # Import everything from the engine (config, classes, app, socketio, data functions, etc.)
 from market_engine import *
@@ -27,8 +27,30 @@ app.register_blueprint(auth_bp)
 routes.websockets.register_websockets(app)
 
 @app.route('/')
-def api_root():
+def serve_index():
+    """Serve the main frontend dashboard."""
+    return send_file('index.html')
+
+@app.route('/api/status')
+def api_status():
+    """API health-check endpoint."""
     return jsonify({'name': 'Agentic AI Trader API', 'version': '1.0', 'status': 'running'})
+
+@app.route('/login')
+def serve_login():
+    """Serve the login page."""
+    return send_file('login.html')
+
+@app.route('/js/<path:filename>')
+def serve_js(filename):
+    """Serve JS files from frontend/js directory."""
+    frontend_js = os.path.join(os.path.dirname(__file__), 'frontend', 'js')
+    if os.path.exists(os.path.join(frontend_js, filename)):
+        return send_from_directory(frontend_js, filename)
+    root_js = os.path.join(os.path.dirname(__file__), 'js')
+    if os.path.exists(os.path.join(root_js, filename)):
+        return send_from_directory(root_js, filename)
+    return jsonify({'error': 'File not found'}), 404
 
 
 # ══════════════════════════════════════════════════════════════

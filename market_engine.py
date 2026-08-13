@@ -222,14 +222,8 @@ AGENTS_AVAILABLE = True
 # Initialize Flask app
 app = Flask(__name__)
 
-# Security: Require SECRET_KEY in production, use dev fallback only in debug mode
-_is_debug = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
-_secret_key = os.environ.get('SECRET_KEY')
-if not _secret_key and not _is_debug:
-    _secret_key = os.urandom(24).hex()
-    logger.warning("SECRET_KEY not set — generated a random key. Sessions will not persist across restarts. Set SECRET_KEY in .env for production.")
-elif not _secret_key:
-    _secret_key = 'dev-only-insecure-key-do-not-use-in-production'
+# Security: Use SECRET_KEY from environment or stable dev key
+_secret_key = os.environ.get('SECRET_KEY') or 'agentic-ai-trader-secret-key-2026'
 app.config['SECRET_KEY'] = _secret_key
 app.permanent_session_lifetime = timedelta(days=30)
 # Security: Restrict CORS to known origins (localhost + Render deployment)
@@ -246,11 +240,11 @@ _frontend_url = os.environ.get('FRONTEND_URL', '')
 if _frontend_url and _frontend_url not in _ALLOWED_ORIGINS:
     _ALLOWED_ORIGINS.append(_frontend_url)
 
-CORS(app, origins=_ALLOWED_ORIGINS, supports_credentials=True, allow_headers=['Content-Type', 'Authorization', 'X-CSRF-Token'], methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+CORS(app, origins="*", supports_credentials=True, allow_headers=['Content-Type', 'Authorization', 'X-CSRF-Token'], methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 # Auto-detect async mode: use 'eventlet' on Render (matching gunicorn --worker-class eventlet),
 # fall back to 'threading' for local development
 _async_mode = 'eventlet' if os.environ.get('RENDER') else 'threading'
-socketio = SocketIO(app, cors_allowed_origins=_ALLOWED_ORIGINS, async_mode=_async_mode)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode=_async_mode)
 
 # Indian Market Configuration
 INDIAN_TIMEZONE = pytz.timezone('Asia/Kolkata')

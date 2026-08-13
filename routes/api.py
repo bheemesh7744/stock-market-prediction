@@ -30,7 +30,7 @@ def _verify_jwt():
     if auth_header and auth_header.startswith('Bearer '):
         token = auth_header.split(' ')[1]
         try:
-            secret = os.environ.get('JWT_SECRET', current_app.config.get('SECRET_KEY', 'dev-jwt-secret'))
+            secret = os.environ.get('JWT_SECRET') or current_app.config.get('SECRET_KEY') or os.environ.get('SECRET_KEY') or 'dev-jwt-secret-key-change-in-production-12345'
             return jwt.decode(token, secret, algorithms=['HS256'])
         except Exception:
             return None

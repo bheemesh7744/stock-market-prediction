@@ -620,15 +620,6 @@
     </div>
     <!-- Failsafe: always dismiss loader even if external scripts fail to load -->
     <script>
-        // JWT Auth Wrapper
-        async function apiFetch(url, options = {}) {
-            const token = localStorage.getItem('token');
-            if (token) {
-                options.headers = options.headers || {};
-                options.headers['Authorization'] = 'Bearer ' + token;
-            }
-            return fetch(url, options);
-        }
 
         (function() {
             var maxWait = 5000;
@@ -703,34 +694,22 @@
                     <button onclick="openAIModal()" id="ai-btn" class="btn btn-purple text-xs">
                         <i class="fas fa-brain"></i><span class="hidden sm:inline">AI Analysis</span>
                     </button>
-                    <!-- Auth Button -->
-                    <div id="auth-area">
-                        {% if is_logged_in %}
-                        <div class="flex items-center gap-2">
-                            <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[0.6rem] font-bold" style="background:linear-gradient(135deg,#059669,#14b8a6);">
-                                    
-                                </div>
-                                <span class="text-xs font-medium text-gray-300 hidden sm:inline"></span>
+                    <!-- User & Logout Controls -->
+                    <div id="auth-area" class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center text-[0.65rem] font-bold text-white" style="background:linear-gradient(135deg,#059669,#14b8a6);">
+                                <i class="fas fa-user"></i>
                             </div>
-                            <button onclick="doLogout()" class="btn btn-ghost text-xs" title="Sign Out">
-                                <i class="fas fa-right-from-bracket"></i>
-                            </button>
+                            <span id="auth-username-display" class="text-xs font-semibold text-emerald-400 hidden sm:inline">Trader</span>
                         </div>
-                        {% else %}
-                        <button onclick="openAuthModal()" id="auth-btn" class="btn text-xs" style="background:linear-gradient(135deg,#059669,#14b8a6);">
-                            <i class="fas fa-user"></i><span class="hidden sm:inline">Sign In</span>
+                        <button onclick="doLogout()" class="btn text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-medium transition-all duration-200" style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.25); color:#fca5a5; cursor:pointer;" onmouseover="this.style.background='rgba(239,68,68,0.25)';" onmouseout="this.style.background='rgba(239,68,68,0.12)';" title="Sign Out">
+                            <i class="fas fa-right-from-bracket text-red-400"></i>
+                            <span class="hidden sm:inline">Logout</span>
                         </button>
-                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
-    
-    <button class="nav-btn" onclick="logout()" style="color: #ef4444; border-color: #ef4444; margin-left: 10px;">
-        <i class="fas fa-sign-out-alt"></i> Logout
-    </button>
-    
 </header>
 
     <!-- ═══════════════════ MAIN ═══════════════════ -->
@@ -1115,6 +1094,22 @@
         </div>
     </div>
     <script>
+        if (typeof API_BASE_URL === 'undefined') {
+            window.API_BASE_URL = (window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')) ? '' : 'https://agentic-ai-trader-y0xx.onrender.com';
+        }
+        if (typeof apiFetch !== 'function') {
+            window.apiFetch = function(path, options = {}) {
+                const url = path.startsWith('http') ? path : API_BASE_URL + path;
+                options.headers = options.headers || {};
+                const token = localStorage.getItem('jwt_token');
+                if (token) options.headers['Authorization'] = 'Bearer ' + token;
+                if (options.body && typeof options.body === 'string' && !options.headers['Content-Type']) {
+                    options.headers['Content-Type'] = 'application/json';
+                }
+                return fetch(url, options);
+            };
+        }
+
         /* ═══════════════════ GLOBALS ═══════════════════ */
         let currentChartSymbol = null;
 let lastChartData = null; // Store last chart details
@@ -1190,7 +1185,34 @@ let currentChartType = 'candle';
                 if (e.key === 'Escape') closeAIModal();
             });
 
+            // Check auth and update UI
+            checkAuthStatus();
+
             console.log('✅ Initialization complete');
+        }
+
+        async function checkAuthStatus() {
+            const token = localStorage.getItem('jwt_token');
+            if (!token || token === 'null' || token === 'undefined') {
+                window.location.href = '/login';
+                return;
+            }
+            try {
+                const r = await apiFetch('/api/auth/status');
+                if (r.ok) {
+                    const data = await r.json();
+                    if (data.logged_in) {
+                        const usernameEl = document.getElementById('auth-username-display');
+                        if (usernameEl) usernameEl.textContent = data.username || 'Trader';
+                    } else {
+                        console.warn('Auth check failed:', data.message);
+                        localStorage.removeItem('jwt_token');
+                        window.location.href = '/login';
+                    }
+                }
+            } catch(e) {
+                console.warn('Auth check network warning:', e);
+            }
         }
 
         /* ═══════════════════ UI ANIMATION HELPERS ═══════════════════ */
@@ -3494,11 +3516,14 @@ let currentChartType = 'candle';
         }
         async function doLogout() {
             try {
+                localStorage.removeItem('jwt_token');
                 await apiFetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
                 showToast('Signed out successfully', 'info');
-                setTimeout(() => location.reload(), 600);
             } catch (err) {
-                showToast('Logout failed', 'error');
+                console.warn('Logout request failed:', err);
+            } finally {
+                localStorage.removeItem('jwt_token');
+                window.location.href = '/login';
             }
         }
         // Close auth modal on Escape key

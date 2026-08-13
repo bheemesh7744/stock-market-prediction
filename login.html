@@ -756,6 +756,20 @@
     </div>
 
     <script>
+        if (typeof isLoggedIn !== 'function') {
+            window.isLoggedIn = function() { return !!localStorage.getItem('jwt_token'); };
+        }
+        if (typeof apiFetch !== 'function') {
+            window.apiFetch = function(path, options = {}) {
+                options.headers = options.headers || {};
+                const token = localStorage.getItem('jwt_token');
+                if (token) options.headers['Authorization'] = 'Bearer ' + token;
+                if (options.body && typeof options.body === 'string' && !options.headers['Content-Type']) {
+                    options.headers['Content-Type'] = 'application/json';
+                }
+                return fetch(path, options);
+            };
+        }
         if (isLoggedIn()) window.location.href = '/';
         /* ── Tab Switching with re-triggering bubble animation ── */
         function switchTab(tab) {
@@ -884,19 +898,27 @@
                         password: document.getElementById('login-password').value
                     })
                 });
-                const data = await resp.json();
+                const contentType = resp.headers.get('content-type') || '';
+                let data;
+                if (contentType.includes('application/json')) {
+                    data = await resp.json();
+                } else {
+                    console.error('Non-JSON response received:', resp.status);
+                    data = { success: false, message: `Server error (${resp.status}). Please try again.` };
+                }
                 if (data.success) {
-                    localStorage.setItem('jwt_token', data.token);
-                    showToast(data.message || 'Welcome!', 'success');
-                    setTimeout(() => window.location.href = '/', 800);
+                    if (data.token) localStorage.setItem('jwt_token', data.token);
+                    window.location.href = '/';
                 } else {
                     errEl.textContent = data.message || 'Login failed';
                     errEl.style.display = 'block';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-right-to-bracket" style="margin-right:4px;"></i> Sign In';
                 }
             } catch (err) {
+                console.error('Login submit error:', err);
                 errEl.textContent = 'Network error. Please try again.';
                 errEl.style.display = 'block';
-            } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-right-to-bracket" style="margin-right:4px;"></i> Sign In';
             }
@@ -929,23 +951,32 @@
                         password: pw
                     })
                 });
-                const data = await resp.json();
+                const contentType = resp.headers.get('content-type') || '';
+                let data;
+                if (contentType.includes('application/json')) {
+                    data = await resp.json();
+                } else {
+                    console.error('Non-JSON response received:', resp.status);
+                    data = { success: false, message: `Server error (${resp.status}). Please try again.` };
+                }
                 if (data.success) {
-                    localStorage.setItem('jwt_token', data.token);
-                    showToast(data.message || 'Account created successfully!', 'success');
-                    setTimeout(() => window.location.href = '/', 800);
+                    if (data.token) localStorage.setItem('jwt_token', data.token);
+                    window.location.href = '/';
                 } else {
                     errEl.textContent = data.message || 'Registration failed';
                     errEl.style.display = 'block';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-user-plus" style="margin-right:4px;"></i> Sign Up';
                 }
             } catch (err) {
+                console.error('Register submit error:', err);
                 errEl.textContent = 'Network error. Please try again.';
                 errEl.style.display = 'block';
-            } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-user-plus" style="margin-right:4px;"></i> Sign Up';
             }
         }
+
     </script>
 </body>
 </html>

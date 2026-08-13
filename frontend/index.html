@@ -620,15 +620,6 @@
     </div>
     <!-- Failsafe: always dismiss loader even if external scripts fail to load -->
     <script>
-        // JWT Auth Wrapper
-        async function apiFetch(url, options = {}) {
-            const token = localStorage.getItem('token');
-            if (token) {
-                options.headers = options.headers || {};
-                options.headers['Authorization'] = 'Bearer ' + token;
-            }
-            return fetch(url, options);
-        }
 
         (function() {
             var maxWait = 5000;
@@ -2288,6 +2279,30 @@ let currentChartType = 'candle';
                     statusEl.className = (d.status === 'open' ? 'pill-up' : 'pill-hold') + ' px-3 py-1 rounded-full text-xs font-bold';
                 }
             }).catch(() => {});
+        }
+
+        async function checkAuthStatus() {
+            const token = localStorage.getItem('jwt_token');
+            if (!token || token === 'null' || token === 'undefined') {
+                window.location.href = '/login';
+                return;
+            }
+            try {
+                const r = await apiFetch('/api/auth/status');
+                if (r.ok) {
+                    const data = await r.json();
+                    if (data.logged_in) {
+                        const usernameEl = document.getElementById('auth-username-display');
+                        if (usernameEl) usernameEl.textContent = data.username || 'Trader';
+                    } else {
+                        console.warn('Auth check failed:', data.message);
+                        localStorage.removeItem('jwt_token');
+                        window.location.href = '/login';
+                    }
+                }
+            } catch(e) {
+                console.warn('Auth check network warning:', e);
+            }
         }
 
         function refreshData() {
