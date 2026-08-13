@@ -1,0 +1,10 @@
+# Ignore Python backend files from Vercel static deployment
+venv/
+__pycache__/
+*.py
+*.db
+requirements*.txt
+render.yaml
+Procfile
+STARTUP_GUIDE.md
+QUICK_START.bat
