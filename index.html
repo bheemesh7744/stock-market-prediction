@@ -97,7 +97,8 @@
             --accent-red: #f43f5e;
             --accent-amber: #f59e0b;
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
+        
+                * { margin:0; padding:0; box-sizing:border-box; }
         html { scroll-behavior:smooth; }
         
         body {
@@ -635,10 +636,18 @@
     </script>
 
     <script>
-        window.__INITIAL_MARKET_DATA__ = ;
-        window.__INDIAN_STOCKS_CONFIG__ = ;
-        window.__IS_LOGGED_IN__ = ;
-        window.__CURRENT_USER__ = { id: , username:  };
+        
+                
+        // Ensure default dark theme
+        try {
+            localStorage.removeItem('app-theme');
+            document.documentElement.removeAttribute('data-theme');
+        } catch(e) {}
+    
+        window.__INITIAL_MARKET_DATA__ = null;
+        window.__INDIAN_STOCKS_CONFIG__ = null;
+        window.__IS_LOGGED_IN__ = false;
+        window.__CURRENT_USER__ = null;
         
         // Ensure all fetch requests include credentials and CSRF token so sessions work properly
         const originalFetch = window.fetch;
@@ -725,6 +734,10 @@
             </button>
             <button id="tab-mf" onclick="switchSection('mf')" class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 text-gray-400 hover:text-white hover:bg-white/[0.04] min-w-[120px]">
                 <i class="fas fa-cubes"></i><span>Mutual Funds</span>
+            </button>
+            <button id="tab-watchlist" onclick="switchSection('watchlist')" class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 text-gray-400 hover:text-white hover:bg-white/[0.04] min-w-[125px]">
+                <i class="fas fa-star text-amber-400"></i><span>Watchlist</span>
+                <span id="nav-watchlist-count" class="hidden px-2 py-0.5 text-[0.65rem] font-bold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">0</span>
             </button>
         </div>
 
@@ -866,6 +879,7 @@
                         <button onclick="setMFFilter('Large Cap')" id="btn-mf-large" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Large Cap</button>
                         <button onclick="setMFFilter('Mid Cap')" id="btn-mf-mid" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Mid Cap</button>
                         <button onclick="setMFFilter('Sectoral / IT')" id="btn-mf-it" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Sectoral/IT</button>
+                        <button onclick="setMFFilter('watchlist')" id="btn-mf-watchlist" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white flex items-center gap-1.5"><i class="fas fa-star text-amber-400 text-[0.65rem]"></i>Watchlist</button>
                     </div>
                 </div>
             </div>
@@ -878,8 +892,40 @@
             </div>
         </section>
 
+        <!-- Watchlist Section -->
+        <section id="watchlist-section" class="hidden mb-8 animate-fade-in">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                <div>
+                    <h2 class="text-base font-bold tracking-tight flex items-center gap-2">
+                        <i class="fas fa-star text-amber-400"></i> My Personal Watchlist
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Real-time live prices, NAVs & AI trend signals for your starred instruments</p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <!-- Watchlist Category Filter Buttons -->
+                    <div class="flex rounded-xl bg-white/[0.02] border border-white/[0.05] p-1 text-xs">
+                        <button onclick="setWatchlistCategoryFilter('all')" id="btn-wl-all" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 tf-active">All (<span id="wl-count-all">0</span>)</button>
+                        <button onclick="setWatchlistCategoryFilter('stocks')" id="btn-wl-stocks" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Stocks (<span id="wl-count-stocks">0</span>)</button>
+                        <button onclick="setWatchlistCategoryFilter('mf')" id="btn-wl-mf" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Mutual Funds (<span id="wl-count-mf">0</span>)</button>
+                        <button onclick="setWatchlistCategoryFilter('indices')" id="btn-wl-indices" class="px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white">Indices (<span id="wl-count-indices">0</span>)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Search Bar inside Watchlist -->
+            <div class="glass-card p-3 mb-6 flex items-center gap-3">
+                <i class="fas fa-magnifying-glass text-gray-500 text-sm ml-2"></i>
+                <input type="text" id="wl-quick-search" placeholder="Search & quick filter any Stock (e.g. RELIANCE, TCS), Mutual Fund (e.g. PPFCF) or Index..." oninput="filterWatchlistSearch(this.value)" class="w-full bg-transparent border-none text-xs text-white placeholder-gray-500 focus:outline-none">
+                <button onclick="clearWatchlistSearch()" id="wl-clear-search" class="hidden text-gray-500 hover:text-white text-xs px-2"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div id="watchlist-content" class="animate-fade-in">
+                <!-- Dynamically populated by renderWatchlistSection() -->
+            </div>
+        </section>
+
         <!-- Historical Values -->
-        <section class="glass-card p-5 mb-8">
+        <section id="historical-section" class="glass-card p-5 mb-8">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
                 <div>
                     <h3 class="text-base font-bold">Day-by-Day Closing Values</h3>
@@ -902,7 +948,7 @@
         </section>
 
         <!-- Candlestick Chart -->
-        <section class="glass-card p-5 mb-8">
+        <section id="candlestick-section" class="glass-card p-5 mb-8">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                 <div>
                     <h3 class="text-base font-bold"><i class="fas fa-chart-candlestick mr-1.5 text-amber-400" style="font-size:0.9rem"></i>Candlestick Chart</h3>
@@ -1133,6 +1179,7 @@ let currentChartType = 'candle';
         }
 
         function initializeApp() {
+            loadWatchlist();
             console.log('🚀 Initializing Agentic AI Trader…');
             updateDropdownOptions('indices'); // Set initial selects for indices
             updateTime();
@@ -1312,21 +1359,23 @@ let currentChartType = 'candle';
 
         function switchSection(section) {
             console.log('🔄 Switching section to:', section);
-            if (!['indices', 'stocks', 'mf'].includes(section)) return;
+            if (!['indices', 'stocks', 'mf', 'watchlist'].includes(section)) return;
             
             const tabs = {
                 indices: document.getElementById('tab-indices'),
                 stocks: document.getElementById('tab-stocks'),
                 mf: document.getElementById('tab-mf'),
+                watchlist: document.getElementById('tab-watchlist'),
             };
             
             const sections = {
                 indices: document.getElementById('market-cards-section'),
                 stocks: document.getElementById('stocks-section'),
                 mf: document.getElementById('mf-section'),
+                watchlist: document.getElementById('watchlist-section'),
             };
             
-            // Reset classes
+            // Reset tab button styles
             for (const [key, tab] of Object.entries(tabs)) {
                 if (tab) {
                     if (key === section) {
@@ -1337,7 +1386,7 @@ let currentChartType = 'candle';
                 }
             }
             
-            // Show/hide sections
+            // Show/hide main sections
             for (const [key, sec] of Object.entries(sections)) {
                 if (sec) {
                     if (key === section) {
@@ -1350,23 +1399,44 @@ let currentChartType = 'candle';
                 }
             }
             
-            // Dynamically update selects to restrict choices
+            const histSection = document.getElementById('historical-section');
+            const chartSection = document.getElementById('candlestick-section');
+            
+            // Update dropdown selects with current category items
             updateDropdownOptions(section);
             
-            // Load section-specific data & refresh charts with active selection
             if (section === 'indices') {
+                if (histSection) { histSection.style.display = 'block'; histSection.classList.remove('hidden'); }
+                if (chartSection) { histSection.style.display = 'block'; chartSection.style.display = 'block'; chartSection.classList.remove('hidden'); }
                 const activeSymbol = 'NIFTY_50';
                 currentChartSymbol = activeSymbol;
+                const chartSelect = document.getElementById('chart-symbol-select');
+                const histSelect = document.getElementById('historical-symbol-select');
+                if (chartSelect) chartSelect.value = activeSymbol;
+                if (histSelect) histSelect.value = activeSymbol;
                 loadHistoricalData();
                 loadCandleData(activeSymbol, currentTimeframe);
             } else if (section === 'stocks') {
+                if (histSection) { histSection.style.display = 'block'; histSection.classList.remove('hidden'); }
+                if (chartSection) { chartSection.style.display = 'block'; chartSection.classList.remove('hidden'); }
                 loadStocksData();
                 const activeSymbol = 'RELIANCE';
                 currentChartSymbol = activeSymbol;
+                const chartSelect = document.getElementById('chart-symbol-select');
+                const histSelect = document.getElementById('historical-symbol-select');
+                if (chartSelect) chartSelect.value = activeSymbol;
+                if (histSelect) histSelect.value = activeSymbol;
                 loadHistoricalData();
                 loadCandleData(activeSymbol, currentTimeframe);
             } else if (section === 'mf') {
+                // In Mutual Funds section: hide candlestick chart & day-by-day table
+                if (histSection) { histSection.style.display = 'none'; histSection.classList.add('hidden'); }
+                if (chartSection) { chartSection.style.display = 'none'; chartSection.classList.add('hidden'); }
                 loadMutualFundsData();
+            } else if (section === 'watchlist') {
+                if (histSection) { histSection.style.display = 'none'; histSection.classList.add('hidden'); }
+                if (chartSection) { chartSection.style.display = 'none'; chartSection.classList.add('hidden'); }
+                loadWatchlist().then(() => renderWatchlistSection());
             }
         }
 
@@ -1378,35 +1448,101 @@ let currentChartType = 'candle';
             }
         }
 
+        
+        /* ═══════════════════ UNIVERSAL WATCHLIST MANAGEMENT ═══════════════════ */
+        let currentWatchlistCategory = 'all'; // 'all', 'stocks', 'mf', 'indices'
+        let watchlistSearchQuery = '';
+        let watchlistCachedData = { stocks: [], mutual_funds: [], indices: [] };
+
         async function loadWatchlist() {
-            if (!currentUser) {
-                userWatchlist = [];
-                return;
-            }
             try {
                 const response = await apiFetch('/api/watchlist');
                 if (response.ok) {
                     const data = await response.json();
-                    userWatchlist = data.symbols || [];
+                    if (data.success && data.data && Array.isArray(data.data.symbols)) {
+                        userWatchlist = data.data.symbols.map(s => s.toUpperCase());
+                    } else if (data.symbols && Array.isArray(data.symbols)) {
+                        userWatchlist = data.symbols.map(s => s.toUpperCase());
+                    }
                 }
             } catch(e) {
-                console.warn('Failed to load watchlist:', e);
+                console.warn('Watchlist fetch warning:', e);
             }
+            updateWatchlistBadges();
+            syncAllStarIcons();
         }
 
         function isWatched(symbol) {
-            return userWatchlist.includes(symbol);
+            if (!symbol) return false;
+            return userWatchlist.includes(symbol.toUpperCase());
+        }
+
+        function updateWatchlistBadges() {
+            const count = userWatchlist.length;
+            const navBadge = document.getElementById('nav-watchlist-count');
+            if (navBadge) {
+                navBadge.textContent = count;
+                if (count > 0) {
+                    navBadge.classList.remove('hidden');
+                } else {
+                    navBadge.classList.add('hidden');
+                }
+            }
+        }
+
+        function syncAllStarIcons() {
+            document.querySelectorAll('[id^="star-"]').forEach(btn => {
+                const sym = btn.id.replace('star-', '').toUpperCase();
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    if (isWatched(sym)) {
+                        icon.className = 'fas fa-star text-amber-400';
+                        btn.title = 'Remove from Watchlist';
+                    } else {
+                        icon.className = 'far fa-star text-gray-500 hover:text-amber-400';
+                        btn.title = 'Add to Watchlist';
+                    }
+                }
+            });
         }
 
         async function toggleWatchlistEvent(e, symbol) {
-            e.stopPropagation();
-            if (!currentUser) {
-                openAuthModal('login');
-                showAuthErrorMessage("Please login to manage your watchlist.");
+            if (e && e.stopPropagation) e.stopPropagation();
+            if (!symbol) return;
+            symbol = symbol.toUpperCase();
+
+            const token = localStorage.getItem('jwt_token');
+            if (!token || token === 'null' || token === 'undefined') {
+                if (typeof openAuthModal === 'function') openAuthModal('login');
+                showToast("Please login to manage your personal watchlist", "warning");
                 return;
             }
+
             const wasWatched = isWatched(symbol);
             const url = wasWatched ? '/api/watchlist/remove' : '/api/watchlist/add';
+
+            // Optimistic UI update
+            if (wasWatched) {
+                userWatchlist = userWatchlist.filter(s => s !== symbol);
+                showToast(`Removed ${symbol} from Watchlist`, "info");
+            } else {
+                userWatchlist.push(symbol);
+                showToast(`⭐ Added ${symbol} to Watchlist`, "success");
+            }
+
+            syncAllStarIcons();
+            updateWatchlistBadges();
+
+            // Refresh current view if needed
+            const currentTab = document.querySelector('#tab-watchlist.active, #tab-stocks.active, #tab-mf.active');
+            if (document.getElementById('tab-watchlist') && document.getElementById('tab-watchlist').classList.contains('active')) {
+                renderWatchlistSection();
+            } else if (currentStockFilter === 'watchlist') {
+                renderStocksGrid();
+            } else if (currentMFFilter === 'watchlist') {
+                renderMutualFundsGrid();
+            }
+
             try {
                 const response = await apiFetch(url, {
                     method: 'POST',
@@ -1414,18 +1550,236 @@ let currentChartType = 'candle';
                     body: JSON.stringify({ symbol: symbol })
                 });
                 if (response.ok) {
-                    if (wasWatched) {
-                        userWatchlist = userWatchlist.filter(s => s !== symbol);
-                    } else {
-                        userWatchlist.push(symbol);
+                    const resData = await response.json();
+                    if (resData.data && Array.isArray(resData.data.symbols)) {
+                        userWatchlist = resData.data.symbols.map(s => s.toUpperCase());
+                        syncAllStarIcons();
+                        updateWatchlistBadges();
                     }
-                    renderStocksGrid();
-                } else {
-                    console.error('Watchlist API failed');
                 }
             } catch(err) {
-                console.error('Watchlist request error:', err);
+                console.error('Watchlist API request error:', err);
             }
+        }
+
+        function setWatchlistCategoryFilter(cat) {
+            currentWatchlistCategory = cat;
+            const catMap = {
+                'all': 'btn-wl-all',
+                'stocks': 'btn-wl-stocks',
+                'mf': 'btn-wl-mf',
+                'indices': 'btn-wl-indices'
+            };
+            for (const [key, btnId] of Object.entries(catMap)) {
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    if (key === cat) {
+                        btn.className = "px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 tf-active";
+                    } else {
+                        btn.className = "px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 text-gray-400 hover:text-white";
+                    }
+                }
+            }
+            displayWatchlistData(watchlistCachedData.stocks, watchlistCachedData.mutual_funds, watchlistCachedData.indices);
+        }
+
+        function filterWatchlistSearch(val) {
+            watchlistSearchQuery = (val || '').toLowerCase().trim();
+            const clearBtn = document.getElementById('wl-clear-search');
+            if (clearBtn) {
+                if (watchlistSearchQuery) clearBtn.classList.remove('hidden');
+                else clearBtn.classList.add('hidden');
+            }
+            displayWatchlistData(watchlistCachedData.stocks, watchlistCachedData.mutual_funds, watchlistCachedData.indices);
+        }
+
+        function clearWatchlistSearch() {
+            const input = document.getElementById('wl-quick-search');
+            if (input) input.value = '';
+            filterWatchlistSearch('');
+        }
+
+        async function renderWatchlistSection() {
+            const container = document.getElementById('watchlist-content');
+            if (!container) return;
+
+            if (!userWatchlist || userWatchlist.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full py-16 px-4 text-center glass-card border border-white/[0.08] rounded-3xl animate-fade-in">
+                        <div class="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-amber-500/10 border border-amber-500/20">
+                            <i class="fas fa-star text-3xl text-amber-400"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-100 mb-2">Your Personal Watchlist is Empty</h3>
+                        <p class="text-xs text-gray-400 max-w-md mx-auto mb-6 leading-relaxed">
+                            Click the star <i class="far fa-star text-amber-400"></i> icon on any Stock, Mutual Fund, or Index across the trading platform to monitor real-time prices, NAVs, and AI predictions here.
+                        </p>
+                        <div class="flex flex-wrap items-center justify-center gap-3">
+                            <button onclick="switchSection('stocks')" class="btn btn-blue text-xs"><i class="fas fa-building mr-1.5"></i> Browse Stocks</button>
+                            <button onclick="switchSection('mf')" class="btn btn-purple text-xs"><i class="fas fa-cubes mr-1.5"></i> Explore Mutual Funds</button>
+                            <button onclick="switchSection('indices')" class="btn btn-ghost text-xs"><i class="fas fa-chart-line mr-1.5"></i> View Indices</button>
+                        </div>
+                    </div>
+                `;
+                updateWatchlistCounts(0, 0, 0, 0);
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="col-span-full py-16 text-center text-gray-400 glass-card">
+                    <div class="animate-spin rounded-full h-8 w-8 border-2 border-transparent border-t-amber-400 mx-auto mb-3"></div>
+                    <p class="text-xs font-medium">Fetching real-time quotes & AI forecasts for your watchlist...</p>
+                </div>
+            `;
+
+            try {
+                const res = await apiFetch('/api/watchlist/details');
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.success && json.data) {
+                        watchlistCachedData = json.data;
+                        displayWatchlistData(json.data.stocks || [], json.data.mutual_funds || [], json.data.indices || []);
+                        return;
+                    }
+                }
+            } catch(e) {
+                console.warn("Failed to load rich watchlist details, using fallback:", e);
+            }
+
+            // Fallback if details endpoint unavailable
+            displayWatchlistFallback();
+        }
+
+        function updateWatchlistCounts(allCount, stocksCount, mfCount, indicesCount) {
+            const elAll = document.getElementById('wl-count-all');
+            const elStocks = document.getElementById('wl-count-stocks');
+            const elMF = document.getElementById('wl-count-mf');
+            const elIndices = document.getElementById('wl-count-indices');
+            if (elAll) elAll.textContent = allCount;
+            if (elStocks) elStocks.textContent = stocksCount;
+            if (elMF) elMF.textContent = mfCount;
+            if (elIndices) elIndices.textContent = indicesCount;
+        }
+
+        function displayWatchlistData(stocks, mutual_funds, indices) {
+            const container = document.getElementById('watchlist-content');
+            if (!container) return;
+
+            let filteredStocks = stocks.filter(s => isWatched(s.symbol));
+            let filteredMF = mutual_funds.filter(f => isWatched(f.symbol));
+            let filteredIndices = indices.filter(i => isWatched(i.symbol));
+
+            // Apply search query filter
+            if (watchlistSearchQuery) {
+                const q = watchlistSearchQuery;
+                filteredStocks = filteredStocks.filter(s => (s.symbol && s.symbol.toLowerCase().includes(q)) || (s.name && s.name.toLowerCase().includes(q)) || (s.display_name && s.display_name.toLowerCase().includes(q)));
+                filteredMF = filteredMF.filter(f => (f.symbol && f.symbol.toLowerCase().includes(q)) || (f.name && f.name.toLowerCase().includes(q)) || (f.category && f.category.toLowerCase().includes(q)));
+                filteredIndices = filteredIndices.filter(i => (i.symbol && i.symbol.toLowerCase().includes(q)) || (i.name && i.name.toLowerCase().includes(q)) || (i.display_name && i.display_name.toLowerCase().includes(q)));
+            }
+
+            const totalActive = filteredStocks.length + filteredMF.length + filteredIndices.length;
+            updateWatchlistCounts(userWatchlist.length, stocks.filter(s => isWatched(s.symbol)).length, mutual_funds.filter(f => isWatched(f.symbol)).length, indices.filter(i => isWatched(i.symbol)).length);
+
+            if (totalActive === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full py-12 px-4 text-center glass-card border border-white/[0.08] rounded-2xl">
+                        <i class="fas fa-filter text-2xl text-gray-500 mb-2"></i>
+                        <p class="text-sm font-medium text-gray-300">No matching items in your watchlist.</p>
+                        <p class="text-xs text-gray-500 mt-1">Try selecting another category filter or clearing your search term.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+
+            // 1. Watched Stocks
+            if ((currentWatchlistCategory === 'all' || currentWatchlistCategory === 'stocks') && filteredStocks.length > 0) {
+                html += `
+                    <div class="mb-8">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider">Watched Stocks (${filteredStocks.length})</h3>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            ${filteredStocks.map(stock => createStockCardHTML(stock)).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 2. Watched Mutual Funds
+            if ((currentWatchlistCategory === 'all' || currentWatchlistCategory === 'mf') && filteredMF.length > 0) {
+                html += `
+                    <div class="mb-8">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+                            <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider">Watched Mutual Funds (${filteredMF.length})</h3>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            ${filteredMF.map(fund => createMFCardHTML(fund)).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 3. Watched Indices
+            if ((currentWatchlistCategory === 'all' || currentWatchlistCategory === 'indices') && filteredIndices.length > 0) {
+                html += `
+                    <div class="mb-8">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                            <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider">Watched Market Indices (${filteredIndices.length})</h3>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            ${filteredIndices.map(symData => {
+                                const sym = symData.symbol;
+                                const cfg = (typeof INDEX_CONFIGS !== 'undefined' && INDEX_CONFIGS[sym]) ? INDEX_CONFIGS[sym] : { name: symData.name || sym, exchange: symData.exchange || 'NSE', category: symData.category || 'Benchmark', cardClass: 'card-blue', tagClass: 'tag-blue' };
+                                const price = Number(symData.price) || 0;
+                                const ch = Number(symData.change) || 0;
+                                const pct = Number(symData.change_percent) || 0;
+                                const priceStr = (cfg.exchange === 'US' ? '$' : '₹') + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                const changeClass = ch >= 0 ? 'profit' : 'loss';
+                                const changeArrow = ch >= 0 ? '▲' : '▼';
+                                const changeStr = `${changeArrow} ${Math.abs(ch).toFixed(2)} (${Math.abs(pct).toFixed(2)}%)`;
+                                return `
+                                    <div class="glass-card ${cfg.cardClass} p-4 cursor-pointer transition-all duration-300 hover:shadow-emerald-500/20" onclick="selectIndexSymbol('${sym}')">
+                                        <div class="flex justify-between items-start mb-3">
+                                            <div>
+                                                <h2 class="text-[0.95rem] font-bold tracking-tight">${cfg.name}</h2>
+                                                <p class="text-[0.65rem] text-gray-500">${cfg.exchange} · ${cfg.category}</p>
+                                            </div>
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="tag ${cfg.tagClass}">${cfg.exchange}</span>
+                                                <button onclick="event.stopPropagation(); toggleWatchlistEvent(event, '${sym}')" class="text-gray-500 hover:text-amber-400 focus:outline-none transition-transform active:scale-125 text-xs p-1" id="star-${sym}" title="Remove from Watchlist">
+                                                    <i class="fas fa-star text-amber-400"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="flex justify-between items-end mb-2">
+                                            <div>
+                                                <div class="text-[1.3rem] font-extrabold tracking-tight price-value">${priceStr}</div>
+                                                <div class="text-xs font-semibold mt-0.5 ${changeClass}">${changeStr}</div>
+                                            </div>
+                                            <div class="pill-hold px-2.5 py-0.5 rounded-full text-[0.65rem] font-bold">${symData.prediction || 'HOLD'}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+            syncAllStarIcons();
+        }
+
+        function displayWatchlistFallback() {
+            const container = document.getElementById('watchlist-content');
+            if (!container) return;
+            const watchedStocks = (stocksData || []).filter(s => isWatched(s.symbol));
+            const watchedFunds = (mfData || []).filter(f => isWatched(f.symbol));
+            displayWatchlistData(watchedStocks, watchedFunds, []);
         }
 
         function setStockFilter(filter) {
@@ -1655,7 +2009,8 @@ let currentChartType = 'candle';
                 'Small Cap': 'btn-mf-small',
                 'Large Cap': 'btn-mf-large',
                 'Mid Cap': 'btn-mf-mid',
-                'Sectoral / IT': 'btn-mf-it'
+                'Sectoral / IT': 'btn-mf-it',
+                'watchlist': 'btn-mf-watchlist'
             };
             
             for (const [catKey, btnId] of Object.entries(catMap)) {
@@ -1668,14 +2023,33 @@ let currentChartType = 'candle';
                     }
                 }
             }
-            loadMutualFundsData();
+            if (category === 'watchlist') {
+                renderMutualFundsGrid();
+            } else {
+                loadMutualFundsData();
+            }
         }
 
         function renderMutualFundsGrid() {
             const grid = document.getElementById('mf-grid');
             if (!grid) return;
             
-            if (!mfData || mfData.length === 0) {
+            let fundsToRender = mfData;
+            if (currentMFFilter === 'watchlist') {
+                fundsToRender = mfData.filter(f => isWatched(f.symbol));
+                if (!fundsToRender || fundsToRender.length === 0) {
+                    grid.innerHTML = `
+                        <div class="col-span-full py-12 text-center text-gray-500 glass-card">
+                            <i class="far fa-star text-2xl mb-2 text-amber-400/50"></i>
+                            <p class="text-sm font-medium text-gray-300">Your Mutual Funds watchlist is empty.</p>
+                            <p class="text-xs text-gray-500 mt-1">Click the star <i class="far fa-star"></i> icon on any mutual fund card to track it!</p>
+                        </div>
+                    `;
+                    return;
+                }
+            }
+            
+            if (!fundsToRender || fundsToRender.length === 0) {
                 grid.innerHTML = `
                     <div class="col-span-full py-12 text-center text-gray-500 glass-card">
                         <i class="fas fa-cubes text-2xl mb-2 text-teal-400/50"></i>
@@ -1685,7 +2059,8 @@ let currentChartType = 'candle';
                 return;
             }
             
-            grid.innerHTML = mfData.map(fund => createMFCardHTML(fund)).join('');
+            grid.innerHTML = fundsToRender.map(fund => createMFCardHTML(fund)).join('');
+            syncAllStarIcons();
         }
 
         function createMFCardHTML(fund) {
@@ -1700,6 +2075,7 @@ let currentChartType = 'candle';
 
             const starCount = Math.max(1, Math.min(5, Number(fund.rating) || 5));
             const starHTML = Array(starCount).fill('<i class="fas fa-star text-amber-400 text-[0.65rem]"></i>').join('');
+            const isFundWatched = isWatched(fund.symbol);
 
             return `
                 <div id="mf-card-${fund.symbol}" class="glass-card p-5 flex flex-col justify-between hover:border-teal-500/30 transition-all duration-300">
@@ -1711,7 +2087,12 @@ let currentChartType = 'candle';
                                 <p class="text-[0.7rem] text-gray-400 mt-0.5">${fund.amc} · ${fund.aum}</p>
                             </div>
                             <div class="flex flex-col items-end gap-1">
-                                <div class="flex items-center gap-0.5">${starHTML}</div>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="flex items-center gap-0.5">${starHTML}</div>
+                                    <button onclick="toggleWatchlistEvent(event, '${fund.symbol}')" class="text-gray-500 hover:text-amber-400 focus:outline-none transition-transform active:scale-125 text-xs z-10 p-0.5" id="star-${fund.symbol}" title="${isFundWatched ? 'Remove from Watchlist' : 'Add to Watchlist'}">
+                                        <i class="${isFundWatched ? 'fas fa-star text-amber-400' : 'far fa-star text-gray-500 hover:text-amber-400'}"></i>
+                                    </button>
+                                </div>
                                 <span class="text-[0.65rem] font-bold px-2 py-0.5 rounded-full border ${badgeClass}">${fund.ai_signal}</span>
                             </div>
                         </div>
@@ -2068,7 +2449,12 @@ let currentChartType = 'candle';
                                 <h2 class="text-[1.05rem] font-bold tracking-tight">${cfg.name}</h2>
                                 <p class="text-[0.7rem] text-gray-500">${cfg.exchange} · ${cfg.category}</p>
                             </div>
-                            <span class="tag ${cfg.tagClass}">${cfg.exchange}</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="tag ${cfg.tagClass}">${cfg.exchange}</span>
+                                <button onclick="event.stopPropagation(); toggleWatchlistEvent(event, '${sym}')" class="text-gray-500 hover:text-amber-400 focus:outline-none transition-transform active:scale-125 text-xs p-1" id="star-${sym}" title="${isWatched(sym) ? 'Remove from Watchlist' : 'Add to Watchlist'}">
+                                    <i class="${isWatched(sym) ? 'fas fa-star text-amber-400' : 'far fa-star text-gray-500 hover:text-amber-400'}"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="flex justify-between items-end mb-4">
                             <div>
@@ -2462,33 +2848,41 @@ let currentChartType = 'candle';
         }
 
         function renderCandlestick(cd) {
-            /* ── Groww-style ultra-clean candlestick chart ── */
-            const datesX = cd.hover_dates || cd.dates;
-            const N = (cd.dates || []).length;
-            if (!N) return;
+            /* ── Groww-style ultra-clean candlestick & graph chart ── */
+            if (!cd || !cd.close || !cd.close.length) {
+                console.warn("No candle data available to render.");
+                return;
+            }
             
-            // Compute ticks to prevent overlapping while showing dates neatly
-            const step = Math.max(1, Math.ceil(N / 10)); // Target ~10 tick labels
+            const N = cd.close.length;
+            const datesX = (cd.dates && cd.dates.length === N) ? cd.dates : 
+                           (cd.hover_dates && cd.hover_dates.length === N) ? cd.hover_dates :
+                           Array.from({length: N}, (_, i) => i + 1);
+
+            const hoverLabels = (cd.hover_dates && cd.hover_dates.length === N) ? cd.hover_dates : datesX;
+            
+            // Compute tick intervals
+            const step = Math.max(1, Math.ceil(N / 8));
             const tickvals = [];
             const ticktext = [];
             for (let i = 0; i < N; i += step) {
                 tickvals.push(datesX[i]);
-                ticktext.push(cd.dates[i]);
+                ticktext.push(cd.dates ? cd.dates[i] : datesX[i]);
             }
             if (N > 0 && tickvals[tickvals.length - 1] !== datesX[N - 1]) {
                 tickvals.push(datesX[N - 1]);
-                ticktext.push(cd.dates[N - 1]);
+                ticktext.push(cd.dates ? cd.dates[N - 1] : datesX[N - 1]);
             }
 
-            // Calculate precise price bounds so candles fill vertical height properly
-            const validLows = (cd.low || []).filter(v => typeof v === 'number' && v > 0);
-            const validHighs = (cd.high || []).filter(v => typeof v === 'number' && v > 0);
-            const minLow = validLows.length ? Math.min(...validLows) : 100;
-            const maxHigh = validHighs.length ? Math.max(...validHighs) : 200;
-            const priceSpan = maxHigh - minLow || 10;
-            const yPadding = priceSpan * 0.12; // 12% top & bottom padding
-            const yMin = Math.floor(minLow - yPadding);
-            const yMax = Math.ceil(maxHigh + yPadding);
+            // Price bounds
+            const validLows = (cd.low || []).filter(v => typeof v === 'number' && !isNaN(v) && v > 0);
+            const validHighs = (cd.high || []).filter(v => typeof v === 'number' && !isNaN(v) && v > 0);
+            const minLow = validLows.length ? Math.min(...validLows) : Math.min(...cd.close);
+            const maxHigh = validHighs.length ? Math.max(...validHighs) : Math.max(...cd.close);
+            const priceSpan = maxHigh - minLow || (minLow * 0.05) || 10;
+            const yPadding = priceSpan * 0.10;
+            const yMin = Math.max(0, minLow - yPadding);
+            const yMax = maxHigh + yPadding;
 
             let mainTrace;
             if (currentChartType === 'graph') {
@@ -2498,51 +2892,50 @@ let currentChartType = 'candle';
                     type: 'scatter',
                     mode: 'lines',
                     name: 'Price',
-                    line: { color: '#00d09c', width: 2.5 },
-                    hovertemplate: 'Price: ₹%{y:.2f}<extra></extra>'
+                    line: { color: '#10b981', width: 2.5 },
+                    text: hoverLabels,
+                    hovertemplate: '%{text}<br><b>Price: ₹%{y:,.2f}</b><extra></extra>'
                 };
             } else {
                 mainTrace = {
                     x: datesX,
-                    open:  cd.open,
-                    high:  cd.high,
-                    low:   cd.low,
+                    open:  cd.open && cd.open.length === N ? cd.open : cd.close,
+                    high:  cd.high && cd.high.length === N ? cd.high : cd.close,
+                    low:   cd.low && cd.low.length === N ? cd.low : cd.close,
                     close: cd.close,
                     type: 'candlestick',
                     name: 'Price',
+                    text: hoverLabels,
                     increasing: {
-                        line: { color: '#00d09c', width: 1.5 },
-                        fillcolor: '#00d09c',
+                        line: { color: '#10b981', width: 1.5 },
+                        fillcolor: '#10b981',
                     },
                     decreasing: {
-                        line: { color: '#eb5b3c', width: 1.5 },
-                        fillcolor: '#eb5b3c',
+                        line: { color: '#ef4444', width: 1.5 },
+                        fillcolor: '#ef4444',
                     },
-                    whiskerwidth: 0, /* Removes horizontal caps on wicks for clean look */
+                    whiskerwidth: 0.3,
                     hovertemplate: 
-                        'Open:  ₹%{open:.2f}<br>' +
-                        'High:  ₹%{high:.2f}<br>' +
-                        'Low:   ₹%{low:.2f}<br>' +
-                        'Close: ₹%{close:.2f}<extra></extra>',
+                        '%{text}<br>' +
+                        'Open:  ₹%{open:,.2f}<br>' +
+                        'High:  ₹%{high:,.2f}<br>' +
+                        'Low:   ₹%{low:,.2f}<br>' +
+                        'Close: ₹%{close:,.2f}<extra></extra>',
                 };
             }
 
-            /* Volume bars — Solid muted colors sitting at bottom */
             const maxVol = Math.max(...(cd.volume || [1])) || 1;
-            const volColors = (cd.close || []).map((c, i) =>
-                c >= ((cd.open || [])[i] || c)
-                    ? 'rgba(0, 208, 156, 0.22)'   /* muted green */
-                    : 'rgba(235, 91, 60, 0.22)'    /* muted red */
-            );
+            const volColors = (cd.close || []).map((c, i) => {
+                const o = (cd.open && cd.open[i]) ? cd.open[i] : c;
+                return c >= o ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+            });
+
             const volumeTrace = {
                 x: datesX,
-                y: cd.volume,
+                y: cd.volume || Array(N).fill(0),
                 type: 'bar',
                 name: 'Volume',
-                marker: {
-                    color: volColors,
-                    line: { width: 0 },
-                },
+                marker: { color: volColors, line: { width: 0 } },
                 yaxis: 'y2',
                 hovertemplate: 'Volume: %{y:,}<extra></extra>',
             };
@@ -2579,7 +2972,7 @@ let currentChartType = 'candle';
                     tickfont: { size: 10, color: '#9ca3af' },
                     side: 'right',
                     tickformat: ',.2f',
-                    range: [yMin, yMax], // Dynamically fits price candles vertically!
+                    range: [yMin, yMax],
                     showspikes: true,
                     spikemode: 'across',
                     spikesnap: 'cursor',
@@ -2594,37 +2987,39 @@ let currentChartType = 'candle';
                     showticklabels: false,
                     showline: false,
                     zeroline: false,
-                    range: [0, maxVol * 4.5], // Squeezes volume to bottom 20%
+                    range: [0, maxVol * 4.5],
                 },
-                margin: { t: 15, r: 50, b: 25, l: 10 },
+                margin: { t: 15, r: 55, b: 25, l: 10 },
                 showlegend: false,
                 dragmode: 'pan',
                 hovermode: 'x unified',
                 hoverlabel: {
-                    bgcolor: 'rgba(22, 27, 34, 0.95)',
-                    bordercolor: 'rgba(255,255,255,0.05)',
+                    bgcolor: 'rgba(10, 17, 15, 0.95)',
+                    bordercolor: 'rgba(255,255,255,0.08)',
                     font: { color: '#e5e7eb', family: 'Inter, sans-serif', size: 12 },
                 },
             };
 
-            const traces = [mainTrace, volumeTrace];
-
-            Plotly.newPlot('live-chart', traces, layout, {
+            const chartEl = document.getElementById('live-chart');
+            if (!chartEl) return;
+            
+            Plotly.newPlot(chartEl, [mainTrace, volumeTrace], layout, {
                 displayModeBar: true,
                 displaylogo: false,
                 modeBarButtonsToRemove: ['lasso2d', 'select2d', 'toImage'],
                 responsive: true,
-                scrollZoom: false, // Prevents violent trackpad/mouse-wheel over-zooming while scrolling page
+                scrollZoom: false,
+            }).then(() => {
+                // Ensure chart resizes and fills the parent element correctly
+                Plotly.Plots.resize(chartEl);
+                window.dispatchEvent(new Event('resize'));
             });
         }
 
 
         /* ═══════════════════ AI ANALYSIS MODAL ═══════════════════ */
         function openAIModal() {
-            // Auto-detect: if user is on stocks section, open stocks tab by default
-            const stocksSection = document.getElementById('stocks-section');
-            const isStocksView = stocksSection && stocksSection.style.display !== 'none';
-            showSymbolSelection(isStocksView ? 'stocks' : 'indices');
+            showSymbolSelection();
         }
         function closeAIModal() {
             document.getElementById('aiModal').classList.remove('active');
@@ -2641,112 +3036,47 @@ let currentChartType = 'candle';
             selectSymbol(symbol);
         }
 
-        function showSymbolSelection(defaultTab) {
+        function showSymbolSelection() {
             const modal = document.getElementById('aiModal');
             const content = document.getElementById('ai-analysis-content');
-            const stocksConfig = window.__INDIAN_STOCKS_CONFIG__ || {};
-
-            // Sector colors for visual distinction
-            const sectorColors = {
-                'Energy': {bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.3)', text: '#facc15', icon: 'fa-bolt'},
-                'IT Services': {bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)', text: '#60a5fa', icon: 'fa-microchip'},
-                'Banking': {bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)', text: '#34d399', icon: 'fa-building-columns'},
-                'FMCG': {bg: 'rgba(244,114,182,0.12)', border: 'rgba(244,114,182,0.3)', text: '#f472b6', icon: 'fa-basket-shopping'},
-                'Telecom': {bg: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)', text: '#a78bfa', icon: 'fa-tower-cell'},
-                'Infrastructure': {bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.3)', text: '#fb923c', icon: 'fa-building'},
-                'Finance': {bg: 'rgba(45,212,191,0.12)', border: 'rgba(45,212,191,0.3)', text: '#2dd4bf', icon: 'fa-coins'},
-                'Automotive': {bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)', text: '#f87171', icon: 'fa-car'},
-                'Metals': {bg: 'rgba(156,163,175,0.12)', border: 'rgba(156,163,175,0.3)', text: '#9ca3af', icon: 'fa-hammer'},
-                'Pharmaceuticals': {bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.3)', text: '#34d399', icon: 'fa-pills'},
-                'Conglomerate': {bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)', text: '#fbbf24', icon: 'fa-layer-group'},
-                'Power Transmission': {bg: 'rgba(96,165,250,0.12)', border: 'rgba(96,165,250,0.3)', text: '#60a5fa', icon: 'fa-plug'}
-            };
-            const defaultSector = {bg: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)', text: '#a78bfa', icon: 'fa-chart-line'};
-
-            // Build stock cards HTML
-            let stockCardsHTML = '';
-            for (const [key, cfg] of Object.entries(stocksConfig)) {
-                const sc = sectorColors[cfg.sector] || defaultSector;
-                stockCardsHTML += `
-                    <button onclick="selectSymbol('${key}')" class="ai-stock-pick glass-card p-3 text-left cursor-pointer hover:scale-[1.03] transition-all duration-200" style="border:1px solid ${sc.border}" data-search="${cfg.display_name.toLowerCase()} ${key.toLowerCase()} ${cfg.sector.toLowerCase()} ${cfg.name.toLowerCase()}">
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${sc.bg};border:1px solid ${sc.border};">
-                                <i class="fas ${sc.icon} text-[0.6rem]" style="color:${sc.text}"></i>
-                            </div>
-                            <div class="truncate">
-                                <div class="text-sm font-bold truncate" style="color:${sc.text}">${cfg.display_name}</div>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-[0.6rem] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono leading-none" style="background:rgba(255,255,255,0.04);color:#9ca3af;border:1px solid rgba(255,255,255,0.06);">${key}</span>
-                            <span class="text-[0.6rem] px-1.5 py-0.5 rounded-full" style="background:${sc.bg};color:${sc.text};border:1px solid ${sc.border};">${cfg.sector}</span>
-                        </div>
-                    </button>`;
-            }
+            if (!modal || !content) return;
 
             // Build index cards HTML
             let indexCardsHTML = '';
             for (const [key, cfg] of Object.entries(INDEX_CONFIGS)) {
                 indexCardsHTML += `
-                    <button onclick="selectSymbol('${key}')" class="ai-stock-pick glass-card p-3 text-left cursor-pointer hover:scale-[1.03] transition-all duration-200" style="border:1px solid rgba(255,255,255,0.08)">
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/10 border border-blue-500/20">
-                                <i class="fas fa-chart-line text-[0.6rem] text-blue-400"></i>
+                    <button onclick="selectSymbol('${key}')" class="ai-stock-pick glass-card p-3.5 text-left cursor-pointer hover:scale-[1.02] hover:border-teal-500/40 transition-all duration-200" style="border:1px solid rgba(255,255,255,0.08)">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-teal-500/10 border border-teal-500/20">
+                                <i class="fas fa-chart-line text-xs text-teal-400"></i>
                             </div>
                             <div class="truncate">
                                 <div class="text-sm font-bold truncate text-white">${cfg.name}</div>
+                                <div class="text-[0.65rem] text-gray-500">${cfg.category}</div>
                             </div>
                         </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-[0.6rem] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono leading-none bg-white/[0.04] text-gray-400 border border-white/[0.06]">${cfg.exchange}</span>
-                            <span class="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">${cfg.category}</span>
+                        <div class="flex items-center justify-between mt-1">
+                            <span class="text-[0.65rem] uppercase tracking-wider px-2 py-0.5 rounded font-mono font-semibold bg-white/[0.04] text-gray-300 border border-white/[0.06]">${cfg.exchange}</span>
+                            <span class="text-[0.65rem] text-teal-400 font-medium">Analyze AI →</span>
                         </div>
                     </button>`;
             }
 
-            const activeTab = defaultTab || 'indices';
-            const indicesActive = activeTab === 'indices';
-
             content.innerHTML = `
-                <div class="text-center mb-5">
-                    <h3 class="text-lg font-bold mb-1">Select for AI Analysis</h3>
-                    <p class="text-xs text-gray-500">AI-powered analysis with BUY/SELL/HOLD recommendations & news</p>
+                <div class="text-center mb-6">
+                    <h3 class="text-base font-bold mb-1 flex items-center justify-center gap-2 text-white">
+                        <i class="fas fa-brain text-teal-400"></i> Select Market Index for AI Analysis
+                    </h3>
+                    <p class="text-xs text-gray-400">Deep learning predictions, BUY/SELL/HOLD recommendations & Options Chain</p>
                 </div>
 
-                <!-- Tab Switcher -->
-                <div class="flex rounded-xl bg-white/[0.03] border border-white/[0.06] p-1 mb-5">
-                    <button onclick="switchAITab('indices')" id="ai-tab-indices" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${indicesActive ? 'bg-gradient-to-r from-blue-600/80 to-cyan-600/80 text-white shadow-lg' : 'text-gray-400 hover:text-white'}">
-                        <i class="fas fa-chart-line text-xs"></i> Indices
-                    </button>
-                    <button onclick="switchAITab('stocks')" id="ai-tab-stocks" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${!indicesActive ? 'bg-gradient-to-r from-purple-600/80 to-pink-600/80 text-white shadow-lg' : 'text-gray-400 hover:text-white'}">
-                        <i class="fas fa-building text-xs"></i> Stocks
-                    </button>
-                </div>
-
-                <!-- Indices Panel -->
-                <div id="ai-panel-indices" style="display:${indicesActive ? 'block' : 'none'}">
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" style="max-height:45vh;overflow-y:auto;padding-right:4px;">
-                        ${indexCardsHTML}
-                    </div>
-                </div>
-
-                <!-- Stocks Panel -->
-                <div id="ai-panel-stocks" style="display:${!indicesActive ? 'block' : 'none'}">
-                    <div class="relative mb-4">
-                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
-                        <input type="text" id="ai-stock-search" placeholder="Search stocks by name, symbol, or sector..." oninput="filterAIStocks(this.value)" class="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all duration-200 outline-none" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--text-primary);" onfocus="this.style.borderColor='rgba(139,92,246,0.5)';this.style.boxShadow='0 0 0 3px rgba(139,92,246,0.1)';" onblur="this.style.borderColor='rgba(255,255,255,0.08)';this.style.boxShadow='none';">
-                    </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" id="ai-stocks-grid" style="max-height:45vh;overflow-y:auto;padding-right:4px;">
-                        ${stockCardsHTML}
-                    </div>
-                    <div id="ai-stocks-empty" class="hidden text-center py-6">
-                        <div class="text-2xl mb-2">🔍</div>
-                        <p class="text-sm text-gray-500">No stocks match your search</p>
-                    </div>
+                <!-- Indices Grid -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6" style="max-height:55vh;overflow-y:auto;padding-right:4px;">
+                    ${indexCardsHTML}
                 </div>
 
                 <div class="text-center">
-                    <button onclick="closeAIModal()" class="btn btn-ghost text-xs">Cancel</button>
+                    <button onclick="closeAIModal()" class="btn btn-ghost text-xs px-6 py-2">Close</button>
                 </div>
             `;
             modal.classList.add('active');

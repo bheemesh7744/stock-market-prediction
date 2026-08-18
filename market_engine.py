@@ -2048,16 +2048,27 @@ def check_rate_limit():
             }), 429
 
 
-def validate_symbol(symbol: str, allow_stocks: bool = False) -> Optional[str]:
+def validate_symbol(symbol: str, allow_stocks: bool = False, allow_mf: bool = True) -> Optional[str]:
     """Validate and sanitize symbol input. Returns error message or None if valid."""
     if not symbol or not isinstance(symbol, str):
         return 'Symbol is required'
     symbol = symbol.upper().strip()
-    valid_set = VALID_INDEX_SYMBOLS
-    if allow_stocks:
-        valid_set = VALID_INDEX_SYMBOLS | set(INDIAN_STOCKS_CONFIG.keys()) if 'INDIAN_STOCKS_CONFIG' in globals() else VALID_INDEX_SYMBOLS
+    valid_set = set(VALID_INDEX_SYMBOLS)
+    if 'INDIAN_MARKET_CONFIG' in globals():
+        valid_set |= set(INDIAN_MARKET_CONFIG.keys())
+    if allow_stocks and 'INDIAN_STOCKS_CONFIG' in globals():
+        valid_set |= set(INDIAN_STOCKS_CONFIG.keys())
+    if allow_mf:
+        try:
+            from backend.agents.mutual_fund_engine import TOP_MUTUAL_FUNDS
+            valid_set |= set(TOP_MUTUAL_FUNDS.keys())
+        except Exception:
+            pass
     if symbol not in valid_set:
-        return f'Invalid symbol: {symbol}'
+        # Also allow general alphanumeric ticker names between 2 and 20 chars
+        import re
+        if not re.match(r'^[A-Z0-9_\-\.\^]{2,25}$', symbol):
+            return f'Invalid symbol: {symbol}'
     return None
 
 

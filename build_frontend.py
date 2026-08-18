@@ -43,11 +43,14 @@ def build_index():
     # (assuming all backend are prefixed with /api based on instructions)
 
     # 4. Remove Jinja template placeholders
-    # e.g., {{ app_title | default("...") }} -> "Stock Market Prediction Dashboard"
     html = re.sub(r'\{\{\s*app_title.*\}\}', 'Stock Market Prediction Dashboard', html)
     html = re.sub(r'\{\{\s*csrf_token\(\)\s*\}\}', '', html)
-    # Remove any generic {{ var }}
-    html = re.sub(r'\{\{.*?\}\}', '', html)
+    html = re.sub(r'\{\{\s*initial_market_data.*\}\}', 'null', html)
+    html = re.sub(r'\{\{\s*stocks_config.*\}\}', 'null', html)
+    html = re.sub(r'\{\{\s*is_logged_in.*\}\}', 'false', html)
+    html = re.sub(r'\{\{\s*current_user.*\}\}', 'null', html)
+    html = re.sub(r'\{\{\s*request\.url_root\s*\}\}', '', html)
+    html = re.sub(r'\{\{.*?\}\}', '""', html)
 
     # 5. Fix Socket.IO connection
     # Replace io() with io(API_BASE_URL)

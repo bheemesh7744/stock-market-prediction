@@ -1,9 +1,0 @@
-{
-  "framework": null,
-  "buildCommand": "",
-  "outputDirectory": ".",
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/login", "destination": "/login.html" }
-  ]
-}
